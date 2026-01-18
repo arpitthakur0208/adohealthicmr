@@ -1,0 +1,1983 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { initDB, saveVideo, getAllVideos, removeVideo, removeModuleVideos } from "./utils/videoStorage";
+import Header from "../components/Header";
+import HeroTitleSection from "../components/HeroTitleSection";
+import MainHero from "../components/MainHero";
+import ImageSection from "../components/ImageSection";
+import StatisticsSection from "../components/StatisticsSection";
+import RiskFactorsSection from "../components/RiskFactorsSection";
+import Footer from "../components/Footer";
+
+interface Question {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer?: number; // Index of the correct answer (0-based)
+}
+
+// Default questions for new modules
+const defaultQuestions: Question[] = [
+  {
+    id: 1,
+    question: "Which of the following is a Non-communicable Disease (NCD)?",
+    options: ["A. Tuberculosis", "B. Heart disease", "C. Cholera", "D. Hepatitis"],
+    correctAnswer: 1, // B. Heart disease
+  },
+  {
+    id: 2,
+    question: "Which of the following is one of the BIG 7 risk factors that causes NCDs?",
+    options: ["A. Drinking water", "B. Unhealthy diet", "C. Brushing teeth", "D. Washing hands"],
+    correctAnswer: 1, // B. Unhealthy diet
+  },
+  {
+    id: 3,
+    question: 'What does the "S" in BE FAST for stroke stand for?',
+    options: ["A. Sleep", "B. Speech difficulty", "C. Stress", "D. Sugar"],
+    correctAnswer: 1, // B. Speech difficulty
+  },
+  {
+    id: 4,
+    question: "Which food helps prevent NCDs?",
+    options: ["A. Samosa", "B. Spinach", "C. Cola", "D. Chips"],
+    correctAnswer: 1, // B. Spinach
+  },
+  {
+    id: 5,
+    question: "Smokeless tobacco increases the risk of which disease?",
+    options: ["A. Asthma", "B. Oral cancer", "C. Osteoarthritis", "D. Migraine"],
+    correctAnswer: 1, // B. Oral cancer
+  },
+  {
+    id: 6,
+    question: "Alcohol use increases the risk of:",
+    options: ["A. Cataract", "B. Psoriasis", "C. Cancer", "D. Arthritis"],
+    correctAnswer: 2, // C. Cancer
+  },
+  {
+    id: 7,
+    question: "Physical inactivity increases the risk of:",
+    options: ["A. Epilepsy", "B. Obesity", "C. Glaucoma", "D. Parkinson's disease"],
+    correctAnswer: 1, // B. Obesity
+  },
+  {
+    id: 8,
+    question: "Excessive sedentary screen time increases risk of:",
+    options: ["A. Kidney stones", "B. Obesity", "C. Thyroid disorders", "D. Varicose veins"],
+    correctAnswer: 1, // B. Obesity
+  },
+  {
+    id: 9,
+    question: "Poor sleep increases risk of:",
+    options: ["A. Scoliosis", "B. Diabetes", "C. Psoriasis", "D. Osteoarthritis"],
+    correctAnswer: 1, // B. Diabetes
+  },
+  {
+    id: 10,
+    question: "Which lifestyle choice helps prevent NCDs?",
+    options: ["A. Skipping meals", "B. Regular exercise", "C. Excessive gaming", "D. Midnight snacking"],
+    correctAnswer: 1, // B. Regular exercise
+  },
+];
+
+interface Module {
+  id: number;
+  title: string;
+  description: string;
+  color: string;
+}
+
+export default function Home() {
+  // Admin authentication state (separate from user login)
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminLoginError, setAdminLoginError] = useState("");
+  const ADMIN_PASSWORD = "admin123"; // Change this to your desired password
+
+  // User credentials - default test users
+  const USER_CREDENTIALS = [
+    { name: "John Doe", email: "john@example.com" },
+    { name: "Jane Smith", email: "jane@example.com" },
+    { name: "Test User", email: "test@example.com" },
+    { name: "Demo User", email: "demo@example.com" },
+  ];
+
+  // User login state (optional - users can browse without logging in)
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState<boolean>(false);
+  const [userName, setUserName] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
+  
+  // Load all state from localStorage after mount to avoid hydration errors
+  useEffect(() => {
+    // Load authentication state
+    setIsAdmin(localStorage.getItem('isAdmin') === 'true');
+    setIsUserLoggedIn(localStorage.getItem('isUserLoggedIn') === 'true');
+    setUserName(localStorage.getItem('userName') || '');
+    setUserEmail(localStorage.getItem('userEmail') || '');
+    
+    // Load image
+    const storedImage = localStorage.getItem('adminUploadedImage');
+    if (storedImage) {
+      setSelectedImage(storedImage);
+    }
+    
+    // Load login heading
+    const storedLoginHeading = localStorage.getItem('adminLoginHeading');
+    if (storedLoginHeading) {
+      setLoginHeading(storedLoginHeading);
+    }
+    
+    // Load videos from IndexedDB (migrate from localStorage if needed)
+    const loadVideos = async () => {
+      try {
+        // Initialize IndexedDB first
+        await initDB();
+        
+        // Try to load from IndexedDB first
+        const indexedDBVideos = await getAllVideos();
+        if (Object.keys(indexedDBVideos).length > 0) {
+          // Ensure all video arrays are properly initialized
+          const normalizedVideos: typeof indexedDBVideos = {};
+          Object.keys(indexedDBVideos).forEach(moduleIdStr => {
+            const moduleId = Number(moduleIdStr);
+            normalizedVideos[moduleId] = {
+              english: indexedDBVideos[moduleId]?.english || [],
+              punjabi: indexedDBVideos[moduleId]?.punjabi || [],
+              hindi: indexedDBVideos[moduleId]?.hindi || [],
+              activity: indexedDBVideos[moduleId]?.activity || []
+            };
+          });
+          setVideos(normalizedVideos);
+        } else {
+          // Migrate from localStorage if IndexedDB is empty
+          const storedVideos = localStorage.getItem('adminUploadedVideos');
+          if (storedVideos) {
+            try {
+              const parsedVideos = JSON.parse(storedVideos);
+              // Ensure all video arrays are properly initialized
+              const normalizedVideos: typeof parsedVideos = {};
+              Object.keys(parsedVideos).forEach(moduleIdStr => {
+                const moduleId = Number(moduleIdStr);
+                normalizedVideos[moduleId] = {
+                  english: parsedVideos[moduleId]?.english || [],
+                  punjabi: parsedVideos[moduleId]?.punjabi || [],
+                  hindi: parsedVideos[moduleId]?.hindi || [],
+                  activity: parsedVideos[moduleId]?.activity || []
+                };
+              });
+              setVideos(normalizedVideos);
+              
+              // Migrate to IndexedDB
+              for (const moduleIdStr of Object.keys(normalizedVideos)) {
+                const moduleId = Number(moduleIdStr);
+                const moduleVideos = normalizedVideos[moduleId];
+                for (const videoType of ['english', 'punjabi', 'hindi', 'activity'] as const) {
+                  for (const video of moduleVideos[videoType]) {
+                    // Only migrate if video has preview data
+                    if (video.preview && video.preview.trim() !== '') {
+                      try {
+                        await saveVideo(moduleId, videoType, video);
+                      } catch (err) {
+                        console.error(`Error migrating video ${moduleId}/${videoType}/${video.id}:`, err);
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Error loading videos from localStorage:', error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading videos from IndexedDB:', error);
+      }
+    };
+    
+    loadVideos();
+    
+    // Function to reload videos from IndexedDB
+    const reloadVideos = async () => {
+      try {
+        await initDB();
+        const indexedDBVideos = await getAllVideos();
+        if (Object.keys(indexedDBVideos).length > 0) {
+          const normalizedVideos: typeof indexedDBVideos = {};
+          Object.keys(indexedDBVideos).forEach(moduleIdStr => {
+            const moduleId = Number(moduleIdStr);
+            normalizedVideos[moduleId] = {
+              english: indexedDBVideos[moduleId]?.english || [],
+              punjabi: indexedDBVideos[moduleId]?.punjabi || [],
+              hindi: indexedDBVideos[moduleId]?.hindi || [],
+              activity: indexedDBVideos[moduleId]?.activity || []
+            };
+          });
+          setVideos(normalizedVideos);
+        }
+      } catch (error) {
+        console.error('Error reloading videos:', error);
+      }
+    };
+    
+    // Store reload function for use in other functions
+    (window as any).reloadVideos = reloadVideos;
+    
+    // Load modules
+    const storedModules = localStorage.getItem('adminEditedModules');
+    let loadedModules = defaultModules;
+    if (storedModules) {
+      try {
+        loadedModules = JSON.parse(storedModules);
+        setModules(loadedModules);
+      } catch (error) {
+        console.error('Error loading modules from localStorage:', error);
+        // Fallback to default modules if parsing fails
+        setModules(defaultModules);
+      }
+    } else {
+      // Ensure modules are set even if no stored data exists
+      setModules(defaultModules);
+    }
+
+    // Load questions
+    const storedQuestions = localStorage.getItem('adminEditedQuestions');
+    if (storedQuestions) {
+      try {
+        const loadedQuestions = JSON.parse(storedQuestions);
+        // Merge with defaults for any modules that don't have questions
+        const mergedQuestions: { [moduleId: number]: Question[] } = {};
+        loadedModules.forEach((module: Module) => {
+          mergedQuestions[module.id] = loadedQuestions[module.id] || defaultQuestions.map(q => ({ ...q }));
+        });
+        setModuleQuestions(mergedQuestions);
+      } catch (error) {
+        console.error('Error loading questions from localStorage:', error);
+      }
+    }
+  }, []);
+
+  const [showUserLogin, setShowUserLogin] = useState(false);
+  const [loginMode, setLoginMode] = useState<'user' | 'admin'>('user');
+  const [loginName, setLoginName] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  const handleAdminLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminPassword === ADMIN_PASSWORD) {
+      setIsAdmin(true);
+      localStorage.setItem('isAdmin', 'true');
+      setShowAdminLogin(false);
+      setAdminPassword("");
+      setAdminLoginError("");
+    } else {
+      setAdminLoginError("Incorrect password. Please try again.");
+      setAdminPassword("");
+    }
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdmin(false);
+    localStorage.removeItem('isAdmin');
+    setEditingModule(null);
+    setEditTitle("");
+    setEditDescription("");
+  };
+
+  const handleUserLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError("");
+
+    const trimmedName = loginName.trim();
+    const trimmedEmail = loginEmail.trim();
+
+    // If both name and email are provided, validate against credentials
+    if (trimmedName && trimmedEmail) {
+      const exactMatch = USER_CREDENTIALS.find(
+        user => 
+          trimmedName.toLowerCase() === user.name.toLowerCase() &&
+          trimmedEmail.toLowerCase() === user.email.toLowerCase()
+      );
+
+      if (exactMatch) {
+        // Valid credentials - login with matched user info
+        setIsUserLoggedIn(true);
+        setUserName(exactMatch.name);
+        setUserEmail(exactMatch.email);
+        localStorage.setItem('isUserLoggedIn', 'true');
+        localStorage.setItem('userName', exactMatch.name);
+        localStorage.setItem('userEmail', exactMatch.email);
+      } else {
+        // Invalid credentials
+        setLoginError("Invalid credentials. Please use one of the test accounts shown above or login with just a name.");
+        return;
+      }
+    } else {
+      // Allow login with any name/email or empty (fallback for flexibility)
+      setIsUserLoggedIn(true);
+      setUserName(trimmedName || 'User');
+      setUserEmail(trimmedEmail);
+      localStorage.setItem('isUserLoggedIn', 'true');
+      localStorage.setItem('userName', trimmedName || 'User');
+      localStorage.setItem('userEmail', trimmedEmail);
+    }
+
+    setShowUserLogin(false);
+    setLoginName("");
+    setLoginEmail("");
+    setLoginError("");
+  };
+
+  const handleUserLogout = () => {
+    setIsUserLoggedIn(false);
+    setUserName("");
+    setUserEmail("");
+    localStorage.removeItem('isUserLoggedIn');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userEmail');
+  };
+
+  // Image state - initialize without localStorage to avoid hydration errors
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [openAccordion, setOpenAccordion] = useState<number | null>(null);
+  
+  // State for module details - track which modules have details open
+  const [moduleDetailsOpen, setModuleDetailsOpen] = useState<{ [key: number]: boolean }>({});
+  const [moduleView, setModuleView] = useState<{ [key: number]: "videos" | "questions" | null }>({});
+  const [selectedVideoType, setSelectedVideoType] = useState<{ [key: number]: "english" | "punjabi" | "hindi" | "activity" | null }>({});
+
+  // Reload videos when a video type is selected to ensure fresh data
+  useEffect(() => {
+    const reloadVideosForModule = async (moduleId: number) => {
+      try {
+        await initDB();
+        const indexedDBVideos = await getAllVideos();
+        if (indexedDBVideos[moduleId]) {
+          setVideos(prev => ({
+            ...prev,
+            [moduleId]: {
+              english: indexedDBVideos[moduleId]?.english || [],
+              punjabi: indexedDBVideos[moduleId]?.punjabi || [],
+              hindi: indexedDBVideos[moduleId]?.hindi || [],
+              activity: indexedDBVideos[moduleId]?.activity || []
+            }
+          }));
+        }
+      } catch (error) {
+        console.error('Error reloading videos for module:', error);
+      }
+    };
+
+    // Reload videos for any module that has a selected video type
+    Object.keys(selectedVideoType).forEach(moduleIdStr => {
+      const moduleId = Number(moduleIdStr);
+      if (selectedVideoType[moduleId]) {
+        reloadVideosForModule(moduleId);
+      }
+    });
+  }, [selectedVideoType]);
+  
+  // Videos state for all modules - initialize empty to avoid hydration errors
+  const [videos, setVideos] = useState<{
+    [moduleId: number]: {
+      english: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+      punjabi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+      hindi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+      activity: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+    };
+  }>({});
+
+  // Pending videos - uploaded but not yet saved (only visible to admin)
+  const [pendingVideos, setPendingVideos] = useState<{
+    [moduleId: number]: {
+      english: Array<{ id: number; preview: string; fileName: string; fileSize: number }> | null;
+      punjabi: Array<{ id: number; preview: string; fileName: string; fileSize: number }> | null;
+      hindi: Array<{ id: number; preview: string; fileName: string; fileSize: number }> | null;
+      activity: Array<{ id: number; preview: string; fileName: string; fileSize: number }> | null;
+    };
+  }>({});
+
+  // State for 8 editable modules - use defaults initially
+  const defaultModules: Module[] = [
+    { id: 1, title: "Introduction to NCDs+", description: "Understanding Non-Communicable Diseases and their impact on adolescent health. This module covers the basics of NCDs, the Big-7 risk factors, and how to identify and prevent these diseases.", color: "pink" },
+    { id: 2, title: "Module 2 Title", description: "Module 2 description. Click to edit this text and customize the content for your module.", color: "blue" },
+    { id: 3, title: "Module 3 Title", description: "Module 3 description. Click to edit this text and customize the content for your module.", color: "green" },
+    { id: 4, title: "Module 4 Title", description: "Module 4 description. Click to edit this text and customize the content for your module.", color: "purple" },
+    { id: 5, title: "Module 5 Title", description: "Module 5 description. Click to edit this text and customize the content for your module.", color: "orange" },
+    { id: 6, title: "Module 6 Title", description: "Module 6 description. Click to edit this text and customize the content for your module.", color: "indigo" },
+    { id: 7, title: "Module 7 Title", description: "Module 7 description. Click to edit this text and customize the content for your module.", color: "teal" },
+    { id: 8, title: "Module 8 Title", description: "Module 8 description. Click to edit this text and customize the content for your module.", color: "red" },
+  ];
+
+  const [modules, setModules] = useState<Module[]>(defaultModules);
+
+  // Questions state - per module
+  const [moduleQuestions, setModuleQuestions] = useState<{
+    [moduleId: number]: Question[];
+  }>(() => {
+    // Initialize with default questions for existing modules
+    const initial: { [moduleId: number]: Question[] } = {};
+    defaultModules.forEach(module => {
+      initial[module.id] = defaultQuestions.map(q => ({ ...q }));
+    });
+    return initial;
+  });
+
+  // Question editing state
+  const [editingQuestion, setEditingQuestion] = useState<{ moduleId: number; questionId: number } | null>(null);
+  const [editQuestionText, setEditQuestionText] = useState("");
+  const [editQuestionOptions, setEditQuestionOptions] = useState<string[]>([]);
+  const [editCorrectAnswer, setEditCorrectAnswer] = useState<number | undefined>(undefined);
+
+  const [editingModule, setEditingModule] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+
+  // Login heading editable state
+  const [loginHeading, setLoginHeading] = useState<string>("Login");
+  const [isEditingLoginHeading, setIsEditingLoginHeading] = useState<boolean>(false);
+
+  const handleEditModule = (module: Module) => {
+    if (!isAdmin) return; // Only allow editing if admin is logged in
+    setEditingModule(module.id);
+    setEditTitle(module.title);
+    setEditDescription(module.description);
+  };
+
+  const handleSaveModule = (moduleId: number) => {
+    if (!isAdmin) return; // Only allow saving if admin is logged in
+    const updatedModules = modules.map(m => 
+      m.id === moduleId 
+        ? { ...m, title: editTitle, description: editDescription }
+        : m
+    );
+    setModules(updatedModules);
+    // Save to localStorage so all users can see admin edits
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
+    }
+    setEditingModule(null);
+    setEditTitle("");
+    setEditDescription("");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingModule(null);
+    setEditTitle("");
+    setEditDescription("");
+  };
+
+  // Question editing functions
+  const handleEditQuestion = (moduleId: number, question: Question) => {
+    if (!isAdmin) return;
+    setEditingQuestion({ moduleId, questionId: question.id });
+    setEditQuestionText(question.question);
+    setEditQuestionOptions([...question.options]);
+    setEditCorrectAnswer(question.correctAnswer !== undefined ? question.correctAnswer : undefined);
+  };
+
+  const handleSaveQuestion = () => {
+    if (!isAdmin || !editingQuestion) return;
+    
+    // Validation
+    if (!editQuestionText.trim()) {
+      alert('Please enter a question text.');
+      return;
+    }
+    
+    if (editQuestionOptions.length < 2) {
+      alert('Please add at least 2 answer options.');
+      return;
+    }
+    
+    if (editQuestionOptions.some(opt => !opt.trim())) {
+      alert('Please fill in all answer options.');
+      return;
+    }
+    
+    if (editCorrectAnswer === undefined || editCorrectAnswer === null) {
+      alert('Please select the correct answer for this question.');
+      return;
+    }
+    
+    const { moduleId, questionId } = editingQuestion;
+    const updatedQuestions = (moduleQuestions[moduleId] || []).map(q =>
+      q.id === questionId
+        ? { ...q, question: editQuestionText.trim(), options: editQuestionOptions.map(opt => opt.trim()), correctAnswer: editCorrectAnswer }
+        : q
+    );
+
+    const updatedModuleQuestions = {
+      ...moduleQuestions,
+      [moduleId]: updatedQuestions
+    };
+    
+    setModuleQuestions(updatedModuleQuestions);
+    
+    // Save to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedModuleQuestions));
+    }
+    
+    setEditingQuestion(null);
+    setEditQuestionText("");
+    setEditQuestionOptions([]);
+    setEditCorrectAnswer(undefined);
+  };
+
+  const handleCancelEditQuestion = () => {
+    setEditingQuestion(null);
+    setEditQuestionText("");
+    setEditQuestionOptions([]);
+    setEditCorrectAnswer(undefined);
+  };
+
+  const handleEditQuestionOption = (index: number, value: string) => {
+    const newOptions = [...editQuestionOptions];
+    newOptions[index] = value;
+    setEditQuestionOptions(newOptions);
+  };
+
+  const handleAddQuestionOption = () => {
+    setEditQuestionOptions([...editQuestionOptions, ""]);
+  };
+
+  const handleRemoveQuestionOption = (index: number) => {
+    if (editQuestionOptions.length > 1) {
+      const newOptions = editQuestionOptions.filter((_, i) => i !== index);
+      setEditQuestionOptions(newOptions);
+      
+      // Adjust correct answer index if needed
+      if (editCorrectAnswer !== undefined) {
+        if (editCorrectAnswer === index) {
+          // If we removed the correct answer, clear it
+          setEditCorrectAnswer(undefined);
+        } else if (editCorrectAnswer > index) {
+          // If we removed an option before the correct answer, decrement the index
+          setEditCorrectAnswer(editCorrectAnswer - 1);
+        }
+      }
+    }
+  };
+
+  // Add new module function
+  const handleAddModule = () => {
+    if (!isAdmin) return;
+    
+    const newModuleId = Math.max(...modules.map(m => m.id), 0) + 1;
+    const colors = ["pink", "blue", "green", "purple", "orange", "indigo", "teal", "red"];
+    const newColor = colors[(newModuleId - 1) % colors.length];
+    
+    const newModule: Module = {
+      id: newModuleId,
+      title: `Module ${newModuleId} Title`,
+      description: `Module ${newModuleId} description. Click to edit this text and customize the content for your module.`,
+      color: newColor
+    };
+
+    const updatedModules = [...modules, newModule];
+    setModules(updatedModules);
+
+    // Initialize questions for new module
+    const updatedQuestions = {
+      ...moduleQuestions,
+      [newModuleId]: defaultQuestions.map(q => ({ ...q }))
+    };
+    setModuleQuestions(updatedQuestions);
+
+    // Initialize videos for new module
+    const updatedVideos = {
+      ...videos,
+      [newModuleId]: {
+        english: [],
+        punjabi: [],
+        hindi: [],
+        activity: []
+      }
+    };
+    setVideos(updatedVideos);
+
+    // Save to localStorage (videos are stored in IndexedDB, not localStorage)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
+      localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedQuestions));
+      // Videos are stored in IndexedDB, not localStorage
+    }
+  };
+
+  // Remove module function
+  const handleRemoveModule = async (moduleId: number) => {
+    if (!isAdmin) return;
+    
+    // Confirm deletion
+    const confirmDelete = window.confirm(`Are you sure you want to remove this module? This will also delete all associated questions and videos. This action cannot be undone.`);
+    if (!confirmDelete) return;
+
+    // Remove module from modules array
+    const updatedModules = modules.filter(m => m.id !== moduleId);
+    setModules(updatedModules);
+
+    // Remove questions for this module
+    const updatedQuestions = { ...moduleQuestions };
+    delete updatedQuestions[moduleId];
+    setModuleQuestions(updatedQuestions);
+
+    // Remove videos for this module
+    const updatedVideos = { ...videos };
+    delete updatedVideos[moduleId];
+    setVideos(updatedVideos);
+
+    // Remove pending videos for this module
+    const updatedPendingVideos = { ...pendingVideos };
+    delete updatedPendingVideos[moduleId];
+    setPendingVideos(updatedPendingVideos);
+
+    // Close any open views/details for this module
+    const updatedModuleDetailsOpen = { ...moduleDetailsOpen };
+    delete updatedModuleDetailsOpen[moduleId];
+    setModuleDetailsOpen(updatedModuleDetailsOpen);
+
+    const updatedModuleView = { ...moduleView };
+    delete updatedModuleView[moduleId];
+    setModuleView(updatedModuleView);
+
+    const updatedSelectedVideoType = { ...selectedVideoType };
+    delete updatedSelectedVideoType[moduleId];
+    setSelectedVideoType(updatedSelectedVideoType);
+
+    // Remove videos from IndexedDB
+    if (typeof window !== 'undefined') {
+      try {
+        await removeModuleVideos(moduleId);
+      } catch (error) {
+        console.error('Error removing module videos from IndexedDB:', error);
+      }
+    }
+
+    // Save to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
+      localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedQuestions));
+    }
+  };
+
+  const getColorClasses = (color: string) => {
+    const colors: { [key: string]: { bg: string; border: string; hover: string } } = {
+      pink: { bg: "bg-pink-500", border: "border-pink-300", hover: "hover:border-pink-400" },
+      blue: { bg: "bg-blue-500", border: "border-blue-300", hover: "hover:border-blue-400" },
+      green: { bg: "bg-green-500", border: "border-green-300", hover: "hover:border-green-400" },
+      purple: { bg: "bg-purple-500", border: "border-purple-300", hover: "hover:border-purple-400" },
+      orange: { bg: "bg-orange-500", border: "border-orange-300", hover: "hover:border-orange-400" },
+      indigo: { bg: "bg-indigo-500", border: "border-indigo-300", hover: "hover:border-indigo-400" },
+      teal: { bg: "bg-teal-500", border: "border-teal-300", hover: "hover:border-teal-400" },
+      red: { bg: "bg-red-500", border: "border-red-300", hover: "hover:border-red-400" },
+    };
+    return colors[color] || colors.pink;
+  };
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        alert("Please select an image file");
+        return;
+      }
+      
+      // Check file size (limit to 2MB for images to avoid quota issues)
+      const maxImageSize = 2 * 1024 * 1024; // 2MB
+      if (file.size > maxImageSize) {
+        alert(`Image file is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 2MB. Please compress the image and try again.`);
+        return;
+      }
+      
+      // Create preview URL and save to localStorage
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const imageData = reader.result as string;
+        setSelectedImage(imageData);
+        // Save to localStorage so all users can see it
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('adminUploadedImage', imageData);
+          } catch (error: any) {
+            if (error.name === 'QuotaExceededError') {
+              alert('Storage limit reached. The image is displayed but may not persist after page refresh. Please remove some content or use a smaller image.');
+            } else {
+              console.error('Error saving image:', error);
+            }
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    // Remove from localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('adminUploadedImage');
+    }
+  };
+
+  const handleVideoUpload = (event: React.ChangeEvent<HTMLInputElement>, moduleId: number) => {
+    if (!isAdmin) return; // Only admin can upload videos
+    
+    const videoType = selectedVideoType[moduleId];
+    if (!videoType) return;
+    
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const currentVideos = videos[moduleId]?.[videoType] || [];
+    const pendingVideo = pendingVideos[moduleId]?.[videoType];
+    const hasSavedVideo = currentVideos.length >= 1;
+    const hasPendingVideo = pendingVideo && pendingVideo.length > 0;
+
+    // Limit to 1 video per type (check both saved and pending)
+    if (hasSavedVideo || hasPendingVideo) {
+      alert(`You can only upload 1 video for ${videoType}. Please remove or save the existing video first.`);
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith("video/")) {
+      alert(`${file.name} is not a video file. Please select a video file.`);
+      return;
+    }
+
+    // Warn about very large files (videos are stored in IndexedDB which handles large files well)
+    const maxVideoSize = 200 * 1024 * 1024; // 200MB (IndexedDB can handle much larger files)
+    if (file.size > maxVideoSize) {
+      const proceed = confirm(`Video file is large (${(file.size / 1024 / 1024).toFixed(2)}MB). Large videos may cause performance issues. Continue?`);
+      if (!proceed) return;
+    }
+
+    // Create preview URL and add to pending videos (not saved yet)
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const newVideo = {
+        id: Date.now(),
+        preview: reader.result as string,
+        fileName: file.name,
+        fileSize: file.size
+      };
+      setPendingVideos(prev => ({
+        ...prev,
+        [moduleId]: {
+          ...(prev[moduleId] || { english: null, punjabi: null, hindi: null, activity: null }),
+          [videoType]: [newVideo]
+        }
+      }));
+    };
+    reader.readAsDataURL(file);
+
+    // Reset input
+    event.target.value = '';
+  };
+
+  const handleSaveVideo = async (moduleId: number) => {
+    if (!isAdmin) return; // Only admin can save videos
+    
+    const videoType = selectedVideoType[moduleId];
+    if (!videoType) return;
+    
+    const pendingVideo = pendingVideos[moduleId]?.[videoType];
+    if (!pendingVideo || pendingVideo.length === 0) return;
+
+    // Move from pending to saved videos
+    const videoToSave = pendingVideo[0];
+    const updatedVideos = {
+      ...videos,
+      [moduleId]: {
+        ...(videos[moduleId] || { english: [], punjabi: [], hindi: [], activity: [] }),
+        [videoType]: pendingVideo
+      }
+    };
+    setVideos(updatedVideos);
+    
+    // Clear pending video
+    setPendingVideos(prev => ({
+      ...prev,
+      [moduleId]: {
+        ...(prev[moduleId] || { english: null, punjabi: null, hindi: null, activity: null }),
+        [videoType]: null
+      }
+    }));
+    
+    // Save to IndexedDB (handles large files much better than localStorage)
+    if (typeof window !== 'undefined') {
+      try {
+        await initDB();
+        await saveVideo(moduleId, videoType, videoToSave);
+        
+        // Reload videos from IndexedDB to ensure they're in sync
+        const indexedDBVideos = await getAllVideos();
+        if (Object.keys(indexedDBVideos).length > 0) {
+          const normalizedVideos: typeof indexedDBVideos = {};
+          Object.keys(indexedDBVideos).forEach(moduleIdStr => {
+            const modId = Number(moduleIdStr);
+            normalizedVideos[modId] = {
+              english: indexedDBVideos[modId]?.english || [],
+              punjabi: indexedDBVideos[modId]?.punjabi || [],
+              hindi: indexedDBVideos[modId]?.hindi || [],
+              activity: indexedDBVideos[modId]?.activity || []
+            };
+          });
+          setVideos(normalizedVideos);
+        }
+        
+        alert('Video saved successfully! All users can now view this video.');
+      } catch (error: any) {
+        console.error('Error saving video to IndexedDB:', error);
+        alert('Error saving video: ' + (error.message || 'Unknown error') + '. The video will work in this session but may not persist after page refresh.');
+      }
+    }
+  };
+
+  const handleRemoveVideo = async (moduleId: number, id: number) => {
+    if (!isAdmin) return; // Only admin can remove videos
+    
+    const videoType = selectedVideoType[moduleId];
+    if (!videoType) return;
+    
+    const updatedVideos = {
+      ...videos,
+      [moduleId]: {
+        ...videos[moduleId],
+        [videoType]: videos[moduleId][videoType].filter(video => video.id !== id)
+      }
+    };
+    setVideos(updatedVideos);
+    
+    // Remove from IndexedDB
+    if (typeof window !== 'undefined') {
+      try {
+        await removeVideo(moduleId, videoType, id);
+      } catch (error: any) {
+        console.error('Error removing video from IndexedDB:', error);
+      }
+    }
+  };
+
+  const handleCancelPendingVideo = (moduleId: number) => {
+    if (!isAdmin) return; // Only admin can cancel pending videos
+    
+    const videoType = selectedVideoType[moduleId];
+    if (!videoType) return;
+    
+    setPendingVideos(prev => ({
+      ...prev,
+      [moduleId]: {
+        ...(prev[moduleId] || { english: null, punjabi: null, hindi: null, activity: null }),
+        [videoType]: null
+      }
+    }));
+  };
+
+  const handleSubmitAnswers = async (event: React.FormEvent<HTMLFormElement>, moduleId: number) => {
+    event.preventDefault();
+    
+    // Collect all form answers
+    const formData = new FormData(event.currentTarget);
+    const answers: { [key: string]: string } = {};
+    
+    const questions = moduleQuestions[moduleId] || [];
+    questions.forEach((q) => {
+      const answer = formData.get(`question-${q.id}`);
+      if (answer) {
+        answers[`Question ${q.id}`] = answer as string;
+      }
+    });
+
+    // Format answers for email
+    const module = modules.find(m => m.id === moduleId);
+    const emailSubject = `${module?.title || `Module ${moduleId}`} Pre-Post Questions Answers`;
+    let emailBody = `${module?.title || `Module ${moduleId}`} Pre-Post Questions - Answers\n\n`;
+    
+    Object.entries(answers).forEach(([question, answer]) => {
+      emailBody += `${question}: ${answer}\n`;
+    });
+
+    emailBody += "\n\nSubmitted via AdoHealth Initiative Website";
+
+    try {
+      // Send email using API route
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: 'adohealthicmr2025@gmail.com',
+          subject: emailSubject,
+          body: emailBody,
+          answers: answers,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        if (result.configured === false) {
+          alert('Answers submitted! However, email service is not configured. Please configure WEB3FORMS_ACCESS_KEY in .env.local to enable email sending. Check the browser console for email details.');
+          console.log('Email details logged in server console. Configure email service to send emails.');
+        } else {
+          alert('Your answers have been submitted successfully to adohealthicmr2025@gmail.com!');
+        }
+        // Reset form
+        event.currentTarget.reset();
+      } else {
+        alert('Failed to submit answers. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error submitting answers:', error);
+      alert('An error occurred while submitting your answers. Please try again.');
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-white">
+      <Header
+        isUserLoggedIn={isUserLoggedIn}
+        isAdmin={isAdmin}
+        userName={userName}
+        onLoginClick={() => {
+          setShowUserLogin(true);
+          setLoginMode('user');
+        }}
+        onLogout={() => {
+          if (isUserLoggedIn) handleUserLogout();
+          if (isAdmin) handleAdminLogout();
+        }}
+      />
+
+      {/* Unified Login Modal */}
+      {showUserLogin && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              {isAdmin && isEditingLoginHeading ? (
+                <div className="flex items-center gap-2 flex-1">
+                  <input
+                    type="text"
+                    value={loginHeading}
+                    onChange={(e) => setLoginHeading(e.target.value)}
+                    className="text-2xl font-bold text-gray-900 border-2 border-orange-500 rounded px-2 py-1 flex-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    autoFocus
+                    onBlur={() => {
+                      setIsEditingLoginHeading(false);
+                      if (typeof window !== 'undefined') {
+                        localStorage.setItem('adminLoginHeading', loginHeading);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setIsEditingLoginHeading(false);
+                        if (typeof window !== 'undefined') {
+                          localStorage.setItem('adminLoginHeading', loginHeading);
+                        }
+                      }
+                      if (e.key === 'Escape') {
+                        setIsEditingLoginHeading(false);
+                        const stored = localStorage.getItem('adminLoginHeading');
+                        setLoginHeading(stored || 'Login');
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <h2 
+                  className="text-2xl font-bold text-gray-900"
+                  onDoubleClick={() => {
+                    if (isAdmin) {
+                      setIsEditingLoginHeading(true);
+                    }
+                  }}
+                  style={{ cursor: isAdmin ? 'pointer' : 'default' }}
+                  title={isAdmin ? 'Double-click to edit' : ''}
+                >
+                  {loginHeading}
+                </h2>
+              )}
+              <button
+                onClick={() => {
+                  setShowUserLogin(false);
+                  setLoginMode('user');
+                  setLoginName("");
+                  setLoginEmail("");
+                  setLoginError("");
+                  setAdminPassword("");
+                  setAdminLoginError("");
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Login Type Toggle */}
+            <div className="mb-6">
+              <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMode('user');
+                    setAdminPassword("");
+                    setAdminLoginError("");
+                  }}
+                  className={`flex-1 px-4 py-2 rounded-md font-semibold text-sm transition-colors ${
+                    loginMode === 'user'
+                      ? 'bg-white text-orange-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  User Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMode('admin');
+                    setLoginName("");
+                    setLoginEmail("");
+                    setLoginError("");
+                  }}
+                  className={`flex-1 px-4 py-2 rounded-md font-semibold text-sm transition-colors ${
+                    loginMode === 'admin'
+                      ? 'bg-white text-green-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Admin Login
+                </button>
+              </div>
+            </div>
+
+            {/* User Login Form */}
+            {loginMode === 'user' && (
+              <form onSubmit={handleUserLogin}>
+                {/* Available Test Users */}
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-xs font-semibold text-blue-900 mb-2">Available Test Users:</p>
+                  <div className="space-y-1">
+                    {USER_CREDENTIALS.map((user, idx) => (
+                      <div key={idx} className="text-xs text-blue-700">
+                        <span className="font-medium">{user.name}</span> - {user.email}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-blue-600 mt-2 italic">Or login with any name/email</p>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Name <span className="text-gray-500 text-xs">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={loginName}
+                    onChange={(e) => {
+                      setLoginName(e.target.value);
+                      setLoginError("");
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                    placeholder="Enter your name"
+                    autoFocus
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email <span className="text-gray-500 text-xs">(Optional)</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => {
+                      setLoginEmail(e.target.value);
+                      setLoginError("");
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                    placeholder="Enter your email"
+                  />
+                </div>
+                {loginError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-600">{loginError}</p>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUserLogin(false);
+                      setLoginName("");
+                      setLoginEmail("");
+                      setLoginError("");
+                    }}
+                    className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors"
+                  >
+                    Login
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Admin Login Form */}
+            {loginMode === 'admin' && (
+              <form onSubmit={handleAdminLogin}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={adminPassword}
+                    onChange={(e) => {
+                      setAdminPassword(e.target.value);
+                      setAdminLoginError("");
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    placeholder="Enter admin password"
+                    autoFocus
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Default password: admin123</p>
+                </div>
+                {adminLoginError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-600">{adminLoginError}</p>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUserLogin(false);
+                      setLoginMode('user');
+                      setAdminPassword("");
+                      setAdminLoginError("");
+                    }}
+                    className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Admin Login
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      <HeroTitleSection />
+      <MainHero />
+      <ImageSection
+        selectedImage={selectedImage}
+        isAdmin={isAdmin}
+        onImageUpload={handleImageUpload}
+        onRemoveImage={handleRemoveImage}
+      />
+      
+      <RiskFactorsSection />
+
+      {/* Interactive E-Modules Section - Visible to logged-in users and admins */}
+      {(isUserLoggedIn || isAdmin) && (
+      <section className="relative w-full px-6 md:px-8 py-8 md:py-12 overflow-hidden">
+        {/* Light Background */}
+        <div className="absolute inset-0 bg-blue-500"></div>
+        
+        {/* Decorative Elements */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
+        </div>
+
+        <div className="max-w-6xl mx-auto relative z-10">
+          {/* Section Header */}
+          <div className="text-center mb-6">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 drop-shadow-lg">
+              Interactive E-Modules
+            </h2>
+            <p className="text-lg text-white/90 max-w-3xl mx-auto drop-shadow-md">
+              Eight comprehensive modules designed for adolescents aged 12-18 combining evidence-based content with purpose-specific for natural relevance.
+            </p>
+          </div>
+
+          {/* Colorful Bar */}
+          <div className="h-2 bg-blue-500 rounded-full mb-8 shadow-lg"></div>
+
+          {/* Add Module Button - Only for Admin */}
+          {isAdmin && (
+            <div className="mb-8 flex justify-center">
+              <button
+                onClick={handleAddModule}
+                className="px-6 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Module
+              </button>
+            </div>
+          )}
+
+          {/* Editable Modules */}
+          {modules.map((module) => {
+            const colorClasses = getColorClasses(module.color);
+            const isEditing = editingModule === module.id;
+            
+            return (
+              <>
+                <div key={module.id} className="bg-white/10 backdrop-blur-sm rounded-2xl shadow-xl hover:bg-white/20 transition-all duration-200 border-2 border-white/30 mb-6 hover:scale-[1.01]">
+                <div className="p-6 md:p-8 flex items-start gap-6">
+                  {/* Icon */}
+                  <div className={`flex-shrink-0 w-20 h-20 ${colorClasses.bg} rounded-lg flex items-center justify-center`}>
+                    <svg
+                      width="40"
+                      height="40"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="text-white"
+                    >
+                      <path
+                        d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between gap-4 mb-2">
+                      <h3 className="text-2xl font-bold text-white drop-shadow-md">
+                        {module.title}
+                      </h3>
+                      {isAdmin && !isEditing && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEditModule(module)}
+                            className="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/20 rounded-lg"
+                            title="Edit module"
+                          >
+                            <svg
+                              width="20"
+                              height="20"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleRemoveModule(module.id)}
+                            className="text-red-300 hover:text-red-200 transition-colors p-2 hover:bg-red-500/30 rounded-lg"
+                            title="Remove module"
+                          >
+                            <svg
+                              width="20"
+                              height="20"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M3 6h18"></path>
+                              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                              <line x1="10" y1="11" x2="10" y2="17"></line>
+                              <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {isEditing ? (
+                      <div className="space-y-4 mb-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Title
+                          </label>
+                          <input
+                            type="text"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                            placeholder="Enter module title"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Description
+                          </label>
+                          <textarea
+                            value={editDescription}
+                            onChange={(e) => setEditDescription(e.target.value)}
+                            rows={4}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none resize-none"
+                            placeholder="Enter module description"
+                          />
+                        </div>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => handleSaveModule(module.id)}
+                            className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-white/90 mb-6 drop-shadow-sm">
+                          {module.description}
+                        </p>
+                      </>
+                    )}
+
+                    {/* View Details Button - For all modules */}
+                    {!isEditing && (
+                      <button
+                        onClick={() => {
+                          setModuleDetailsOpen(prev => ({
+                            ...prev,
+                            [module.id]: !prev[module.id]
+                          }));
+                          if (moduleDetailsOpen[module.id]) {
+                            setModuleView(prev => ({
+                              ...prev,
+                              [module.id]: null
+                            }));
+                          }
+                        }}
+                        className="text-orange-500 hover:text-orange-600 font-semibold text-base flex items-center gap-2 transition-colors"
+                      >
+                        {moduleDetailsOpen[module.id] ? "Hide Details" : "View Details"}
+                        <svg
+                          className={`w-5 h-5 transition-transform duration-200 ${
+                            moduleDetailsOpen[module.id] ? "rotate-180" : ""
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Two Buttons - Shown when View Details is clicked for this module */}
+              {moduleDetailsOpen[module.id] && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    {/* Module Videos Button */}
+                    <button
+                      onClick={() => setModuleView(prev => ({
+                        ...prev,
+                        [module.id]: prev[module.id] === "videos" ? null : "videos"
+                      }))}
+                      className={`p-6 ${colorClasses.bg === "bg-pink-500" ? "bg-pink-50" : colorClasses.bg === "bg-blue-500" ? "bg-blue-50" : colorClasses.bg === "bg-green-500" ? "bg-green-50" : colorClasses.bg === "bg-purple-500" ? "bg-purple-50" : colorClasses.bg === "bg-orange-500" ? "bg-orange-50" : colorClasses.bg === "bg-indigo-500" ? "bg-indigo-50" : colorClasses.bg === "bg-teal-500" ? "bg-teal-50" : "bg-red-50"} border-2 ${colorClasses.border} rounded-lg ${colorClasses.hover} hover:shadow-lg transition-all duration-200 text-left`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 ${colorClasses.bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                          <svg
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="text-white"
+                          >
+                            <path
+                              d="M8 5v14l11-7z"
+                              fill="currentColor"
+                            />
+                          </svg>
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-bold text-gray-900 mb-1">{module.title} Videos</h4>
+                          <p className="text-sm text-gray-600">Upload and preview module videos</p>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Pre-Post Questions Button */}
+                    <button
+                      onClick={() => setModuleView(prev => ({
+                        ...prev,
+                        [module.id]: prev[module.id] === "questions" ? null : "questions"
+                      }))}
+                      className="p-6 bg-green-50 border-2 border-green-300 rounded-lg hover:border-green-400 hover:shadow-lg transition-all duration-200 text-left"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <svg
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="text-white"
+                          >
+                            <path
+                              d="M9 11H1l4-4m0 0l4 4m-4-4v12"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              fill="none"
+                            />
+                            <path
+                              d="M15 13h8l-4 4m0 0l-4-4m4 4V5"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              fill="none"
+                            />
+                          </svg>
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-bold text-gray-900 mb-1">Pre-Post Questions</h4>
+                          <p className="text-sm text-gray-600">Answer pre and post assessment questions</p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Module Videos Section - Shown when Videos button is clicked */}
+                  {moduleView[module.id] === "videos" && (() => {
+                    const moduleVideos = videos[module.id] || { english: [], punjabi: [], hindi: [], activity: [] };
+                    const currentVideoType = selectedVideoType[module.id];
+                    
+                    return (
+                      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-8 md:p-10 mb-8">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-2xl font-bold text-gray-900">{module.title} Videos</h3>
+                          {currentVideoType && (
+                            <button
+                              onClick={() => setSelectedVideoType(prev => ({ ...prev, [module.id]: null }))}
+                              className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                              </svg>
+                              Back to Categories
+                            </button>
+                          )}
+                        </div>
+
+                        {/* 4 Language/Activity Buttons */}
+                        {!currentVideoType && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            {/* English Button */}
+                            <button
+                              onClick={() => setSelectedVideoType(prev => ({ ...prev, [module.id]: "english" }))}
+                              className="p-6 bg-blue-50 border-2 border-blue-300 rounded-lg hover:border-blue-400 hover:shadow-lg transition-all duration-200 text-left"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <span className="text-white font-bold text-lg">EN</span>
+                                </div>
+                                <div>
+                                  <h4 className="text-lg font-bold text-gray-900 mb-1">English</h4>
+                                  <p className="text-sm text-gray-600">{moduleVideos.english.length} / 1 video</p>
+                                </div>
+                              </div>
+                            </button>
+
+                            {/* Punjabi Button */}
+                            <button
+                              onClick={() => setSelectedVideoType(prev => ({ ...prev, [module.id]: "punjabi" }))}
+                              className="p-6 bg-orange-50 border-2 border-orange-300 rounded-lg hover:border-orange-400 hover:shadow-lg transition-all duration-200 text-left"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <span className="text-white font-bold text-lg">PA</span>
+                                </div>
+                                <div>
+                                  <h4 className="text-lg font-bold text-gray-900 mb-1">Punjabi</h4>
+                                  <p className="text-sm text-gray-600">{moduleVideos.punjabi.length} / 1 video</p>
+                                </div>
+                              </div>
+                            </button>
+
+                            {/* Hindi Button */}
+                            <button
+                              onClick={() => setSelectedVideoType(prev => ({ ...prev, [module.id]: "hindi" }))}
+                              className="p-6 bg-green-50 border-2 border-green-300 rounded-lg hover:border-green-400 hover:shadow-lg transition-all duration-200 text-left"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <span className="text-white font-bold text-lg">HI</span>
+                                </div>
+                                <div>
+                                  <h4 className="text-lg font-bold text-gray-900 mb-1">Hindi</h4>
+                                  <p className="text-sm text-gray-600">{moduleVideos.hindi.length} / 1 video</p>
+                                </div>
+                              </div>
+                            </button>
+
+                            {/* Activity Video Button */}
+                            <button
+                              onClick={() => setSelectedVideoType(prev => ({ ...prev, [module.id]: "activity" }))}
+                              className="p-6 bg-purple-50 border-2 border-purple-300 rounded-lg hover:border-purple-400 hover:shadow-lg transition-all duration-200 text-left"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-white">
+                                    <path d="M14.751 9c.906 0 1.15.756 1.15 1.089v5.912c0 .333-.244 1.089-1.15 1.089H9.249c-.906 0-1.15-.756-1.15-1.089v-5.912c0-.333.244-1.089 1.15-1.089h5.502z" fill="currentColor"/>
+                                  </svg>
+                                </div>
+                                <div>
+                                  <h4 className="text-lg font-bold text-gray-900 mb-1">Activity Video</h4>
+                                  <p className="text-sm text-gray-600">{moduleVideos.activity.length} / 1 video</p>
+                                </div>
+                              </div>
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Video Upload Area - Shown when a type is selected */}
+                        {currentVideoType && (() => {
+                          const savedVideoList = moduleVideos[currentVideoType] || [];
+                          const pendingVideoList = pendingVideos[module.id]?.[currentVideoType] || null;
+                          const hasSavedVideo = savedVideoList.length > 0;
+                          const hasPendingVideo = pendingVideoList && pendingVideoList.length > 0;
+                          const displayVideo = hasSavedVideo ? savedVideoList : (hasPendingVideo ? pendingVideoList : null);
+                          
+                          return (
+                            <>
+                              <div className="mb-6">
+                                <h4 className="text-xl font-bold text-gray-900 mb-2 capitalize">
+                                  {currentVideoType === "activity" ? "Activity" : currentVideoType} Videos
+                                </h4>
+                                <div className="flex items-center justify-between mb-4">
+                                  <p className="text-sm text-gray-600">
+                                    {isAdmin 
+                                      ? `Upload videos for ${currentVideoType === "activity" ? "activities" : `the ${currentVideoType} language`}`
+                                      : `View ${currentVideoType === "activity" ? "activity" : currentVideoType} videos`
+                                    }
+                                  </p>
+                                  <span className="text-sm text-gray-500">
+                                    {hasSavedVideo ? "1 / 1 video saved" : hasPendingVideo ? "Pending save" : "No video"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Video Upload Area - Only for Admin */}
+                              {isAdmin && !hasSavedVideo && !hasPendingVideo && (
+                                <div className="mb-6">
+                                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Upload Video <span className="text-red-500">*</span>
+                                  </label>
+                                  <label
+                                    htmlFor={`video-upload-${module.id}`}
+                                    className="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+                                  >
+                                    <input
+                                      id={`video-upload-${module.id}`}
+                                      type="file"
+                                      accept="video/*"
+                                      onChange={(e) => handleVideoUpload(e, module.id)}
+                                      className="hidden"
+                                    />
+                                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                      <svg
+                                        className="w-12 h-12 mb-4 text-gray-400"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                        />
+                                      </svg>
+                                      <p className="mb-2 text-sm text-gray-500">
+                                        <span className="font-semibold">Click to upload</span> or drag and drop
+                                      </p>
+                                      <p className="text-xs text-gray-500">MP4, AVI, MOV (MAX. 100MB each)</p>
+                                    </div>
+                                  </label>
+                                </div>
+                              )}
+
+                              {/* Pending Video Display with Save Button - Only for Admin */}
+                              {isAdmin && hasPendingVideo && !hasSavedVideo && displayVideo && (
+                                <div className="relative mb-6">
+                                  <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mb-4">
+                                    <p className="text-sm text-yellow-800 font-medium mb-2">
+                                      ⚠️ Video uploaded but not saved. Click "Save Video" to make it available to all users.
+                                    </p>
+                                  </div>
+                                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                                    <div className="relative aspect-video mb-3">
+                                      <video
+                                        src={displayVideo[0].preview}
+                                        controls
+                                        className="w-full h-full rounded-lg border border-gray-300 object-cover"
+                                      >
+                                        Your browser does not support the video tag.
+                                      </video>
+                                    </div>
+                                    <div className="p-3 bg-white rounded-lg">
+                                      <p className="text-sm font-semibold text-gray-900 mb-1">
+                                        {currentVideoType === "activity" ? "Activity" : currentVideoType.charAt(0).toUpperCase() + currentVideoType.slice(1)} Video (Pending)
+                                      </p>
+                                      <p className="text-xs text-gray-600 truncate">
+                                        {displayVideo[0].fileName}
+                                      </p>
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        {(displayVideo[0].fileSize / 1024 / 1024).toFixed(2)} MB
+                                      </p>
+                                      <div className="mt-4 flex gap-3">
+                                        <button
+                                          onClick={() => handleSaveVideo(module.id)}
+                                          className="flex-1 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-md"
+                                        >
+                                          Save Video
+                                        </button>
+                                        <button
+                                          onClick={() => handleCancelPendingVideo(module.id)}
+                                          className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-400 transition-colors"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Saved Video Display - Visible to all users */}
+                              {hasSavedVideo && displayVideo && displayVideo.length > 0 && (
+                                <div className="relative">
+                                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                                    {displayVideo[0]?.preview && 
+                                     displayVideo[0].preview.trim() !== '' && 
+                                     (displayVideo[0].preview.startsWith('data:video/') || displayVideo[0].preview.startsWith('blob:')) ? (
+                                      <>
+                                        <div className="relative aspect-video mb-3">
+                                          <video
+                                            src={displayVideo[0].preview}
+                                            controls
+                                            className="w-full h-full rounded-lg border border-gray-300 object-cover"
+                                            preload="metadata"
+                                          >
+                                            Your browser does not support the video tag.
+                                          </video>
+                                          {isAdmin && (
+                                            <button
+                                              onClick={() => handleRemoveVideo(module.id, displayVideo[0].id)}
+                                              className="absolute top-2 right-2 bg-red-500 text-white px-3 py-1.5 rounded-lg hover:bg-red-600 transition-colors shadow-lg text-sm font-medium"
+                                            >
+                                              Remove
+                                            </button>
+                                          )}
+                                        </div>
+                                        <div className="p-3 bg-white rounded-lg">
+                                          <p className="text-sm font-semibold text-gray-900 mb-1">
+                                            {currentVideoType === "activity" ? "Activity" : currentVideoType.charAt(0).toUpperCase() + currentVideoType.slice(1)} Video
+                                          </p>
+                                          <p className="text-xs text-gray-600 truncate">
+                                            {displayVideo[0].fileName}
+                                          </p>
+                                          <p className="text-xs text-gray-500 mt-1">
+                                            {(displayVideo[0].fileSize / 1024 / 1024).toFixed(2)} MB
+                                          </p>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="p-6 text-center">
+                                        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-4">
+                                          <p className="text-sm text-blue-800 font-medium mb-2">
+                                            📹 Video metadata found
+                                          </p>
+                                          <p className="text-xs text-blue-600 mb-2">
+                                            File: {displayVideo[0].fileName}
+                                          </p>
+                                          <p className="text-xs text-blue-600">
+                                            Size: {(displayVideo[0].fileSize / 1024 / 1024).toFixed(2)} MB
+                                          </p>
+                                        </div>
+                                        <p className="text-sm text-gray-600">
+                                          Video was saved but preview is not available. {isAdmin ? 'Please remove and re-upload the video to view it.' : 'Please contact an administrator.'}
+                                        </p>
+                                        {isAdmin && (
+                                          <button
+                                            onClick={() => handleRemoveVideo(module.id, displayVideo[0].id)}
+                                            className="mt-4 px-4 py-2 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors"
+                                          >
+                                            Remove Video
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* No Video Message */}
+                              {!hasSavedVideo && !hasPendingVideo && (
+                                <div className="text-center py-12 text-gray-500">
+                                  <p>{isAdmin ? "No videos uploaded yet. Click the upload area above to add videos." : "No videos available yet."}</p>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Module Questions Form - Shown when Pre-Post Questions button is clicked */}
+                  {moduleView[module.id] === "questions" && (
+                    <form className="bg-white rounded-lg shadow-lg border border-gray-200 p-8 md:p-10 mb-8" onSubmit={(e) => handleSubmitAnswers(e, module.id)}>
+                      <div className="space-y-8">
+                        {(moduleQuestions[module.id] || []).map((q) => {
+                          const isEditing = editingQuestion?.moduleId === module.id && editingQuestion?.questionId === q.id;
+                          
+                          return (
+                            <fieldset
+                              key={q.id}
+                              className="border border-gray-200 rounded-lg p-6 hover:border-pink-300 transition-colors relative"
+                            >
+                              {isAdmin && !isEditing && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditQuestion(module.id, q)}
+                                  className="absolute top-4 right-4 p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Edit Question"
+                                >
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                              )}
+                              
+                              <legend className="px-3 text-lg font-bold text-gray-900">
+                                Question {q.id} <span className="text-red-500">*</span>
+                              </legend>
+                              
+                              {isEditing ? (
+                                <div className="mt-4 space-y-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      Question Text
+                                    </label>
+                                    <textarea
+                                      value={editQuestionText}
+                                      onChange={(e) => setEditQuestionText(e.target.value)}
+                                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                      rows={3}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      Answer Options
+                                    </label>
+                                    <div className="space-y-2">
+                                      {editQuestionOptions.map((option, index) => (
+                                        <div key={index} className="flex gap-2">
+                                          <input
+                                            type="text"
+                                            value={option}
+                                            onChange={(e) => handleEditQuestionOption(index, e.target.value)}
+                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                            placeholder={`Option ${index + 1}`}
+                                          />
+                                          {editQuestionOptions.length > 1 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveQuestionOption(index)}
+                                              className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                                            >
+                                              Remove
+                                            </button>
+                                          )}
+                                        </div>
+                                      ))}
+                                      <button
+                                        type="button"
+                                        onClick={handleAddQuestionOption}
+                                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                                      >
+                                        Add Option
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      Correct Answer <span className="text-red-500">*</span>
+                                    </label>
+                                    <p className="text-xs text-gray-500 mb-3">
+                                      Select which option is the correct answer for this question
+                                    </p>
+                                    <div className="space-y-2">
+                                      {editQuestionOptions.map((option, index) => (
+                                        <label
+                                          key={index}
+                                          className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                                            editCorrectAnswer === index
+                                              ? 'border-green-500 bg-green-50'
+                                              : 'border-gray-200 hover:border-gray-300'
+                                          }`}
+                                        >
+                                          <input
+                                            type="radio"
+                                            name={`correct-answer-${editingQuestion?.moduleId}-${editingQuestion?.questionId}`}
+                                            checked={editCorrectAnswer === index}
+                                            onChange={() => setEditCorrectAnswer(index)}
+                                            className="w-5 h-5 text-green-600 border-gray-300 focus:ring-green-500 focus:ring-2 cursor-pointer"
+                                          />
+                                          <span className="text-gray-700 font-medium flex-1">
+                                            Option {index + 1}: {option || `(Empty option ${index + 1})`}
+                                          </span>
+                                          {editCorrectAnswer === index && (
+                                            <span className="text-green-600 font-semibold text-sm">✓ Correct</span>
+                                          )}
+                                        </label>
+                                      ))}
+                                      {editQuestionOptions.length === 0 && (
+                                        <p className="text-sm text-gray-500 italic">
+                                          Please add at least one option before selecting the correct answer.
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-3 pt-2">
+                                    <button
+                                      type="button"
+                                      onClick={handleSaveQuestion}
+                                      className="px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors"
+                                    >
+                                      Save Question
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelEditQuestion}
+                                      className="px-6 py-2 bg-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-400 transition-colors"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="mt-4 mb-6">
+                                    <label className="block text-base font-semibold text-gray-900 mb-2">
+                                      {q.question}
+                                    </label>
+                                    <p className="text-sm text-gray-500">
+                                      Please select one answer from the options below
+                                    </p>
+                                  </div>
+
+                                  {/* Radio Options */}
+                                  <div className="space-y-3">
+                                    {q.options.map((option, index) => (
+                                      <label
+                                        key={index}
+                                        className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-pink-400 hover:bg-pink-50 cursor-pointer transition-all duration-200"
+                                      >
+                                        <input
+                                          type="radio"
+                                          name={`question-${q.id}`}
+                                          value={option}
+                                          required
+                                          className="w-5 h-5 text-pink-600 border-gray-300 focus:ring-pink-500 focus:ring-2 cursor-pointer"
+                                        />
+                                        <span className="text-gray-700 font-medium flex-1">{option}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </fieldset>
+                          );
+                        })}
+                      </div>
+
+                      {/* Form Actions */}
+                      <div className="mt-10 pt-6 border-t border-gray-200 flex flex-col sm:flex-row gap-4 justify-between items-center">
+                        <p className="text-sm text-gray-500">
+                          <span className="text-red-500">*</span> Required fields
+                        </p>
+                        <div className="flex gap-4">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const form = document.querySelector('form');
+                              if (form) {
+                                form.reset();
+                              }
+                            }}
+                            className="px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                          >
+                            Clear Form
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-8 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                          >
+                            Submit Answers
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  )}
+                </>
+              )}
+              </>
+            );
+          })}
+
+        </div>
+      </section>
+      )}
+
+      <Footer />
+    </main>
+  );
+}
