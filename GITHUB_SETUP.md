@@ -31,11 +31,18 @@ git add .
 git commit -m "Initial commit"
 ```
 
-### Step 4: Create GitHub Repository
+### Step 4: Create GitHub Repository ⚠️ REQUIRED
+**The repository doesn't exist on GitHub yet. You MUST create it first!**
+
 1. Go to https://github.com/new
-2. Create a new repository (name it `adohealthicmr` or your preferred name)
-3. **DO NOT** initialize with README, .gitignore, or license (we already have these)
-4. Click "Create repository"
+2. Repository name: `adohealthicmr` (must match exactly)
+3. Description: (optional) "ADO Health ICMR Project"
+4. Choose Public or Private
+5. **IMPORTANT:** Do NOT check:
+   - ❌ Add a README file
+   - ❌ Add .gitignore
+   - ❌ Choose a license
+6. Click "Create repository" (green button)
 
 ### Step 5: Link Local Repository to GitHub
 After creating the repository, GitHub will show you commands. Use these (replace `YOUR_USERNAME` with your GitHub username):
