@@ -1,5 +1,8 @@
 "use client";
 
+import Image from "next/image";
+import bannerImg from "../assets/bannerimg.png";
+
 interface ImageSectionProps {
   selectedImage: string | null;
   isAdmin: boolean;
@@ -10,18 +13,27 @@ interface ImageSectionProps {
 export default function ImageSection({ selectedImage, isAdmin, onImageUpload, onRemoveImage }: ImageSectionProps) {
   return (
     <section className="relative w-full px-6 md:px-8 py-8 md:py-12 overflow-hidden">
-      {/* Light Background */}
-      <div className="absolute inset-0 bg-teal-500"></div>
+      {/* Light Gradient Background with Darker Middle */}
+      <div className="absolute inset-0 bg-gradient-to-br from-teal-100 via-cyan-400 to-blue-100"></div>
       
       {/* Decorative Elements */}
-      <div className="absolute inset-0 opacity-10">
+      {/* <div className="absolute inset-0 opacity-10">
         <div className="absolute top-10 right-10 w-64 h-64 bg-white rounded-full blur-3xl"></div>
         <div className="absolute bottom-10 left-10 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+      </div> */}
+      
+      {/* Banner Image Background */}
+      <div className="w-full h-[400px]">
+        <Image
+          src={bannerImg}
+          alt="Banner"
+          fill
+          className="object-contain"
+        />
       </div>
 
-      <div className="max-w-6xl mx-auto relative z-10">
+      {/* <div className="max-w-6xl mx-auto relative z-10">
         <div className="flex flex-col md:flex-row items-center justify-center gap-8">
-          {/* Image Upload Area */}
           <div className="w-full md:w-[500px] h-[500px] bg-white/20 backdrop-blur-sm rounded-2xl overflow-hidden relative group shadow-2xl border-2 border-white/30">
             {selectedImage ? (
               <>
@@ -74,7 +86,7 @@ export default function ImageSection({ selectedImage, isAdmin, onImageUpload, on
             )}
           </div>
         </div>
-      </div>
+      </div> */}
     </section>
   );
 }

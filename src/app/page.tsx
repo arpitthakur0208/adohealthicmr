@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { initDB, saveVideo, getAllVideos, removeVideo, removeModuleVideos } from "./utils/videoStorage";
+import { saveModules, saveModuleQuestions, saveModuleAnswers, loadAppDataFromServer, type StoredModule, type StoredQuestion } from "./utils/dataStorage";
 import Header from "../components/Header";
 import HeroTitleSection from "../components/HeroTitleSection";
 import MainHero from "../components/MainHero";
@@ -108,6 +109,9 @@ export default function Home() {
   const [isUserLoggedIn, setIsUserLoggedIn] = useState<boolean>(false);
   const [userName, setUserName] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
+  
+  // Modules slide panel state
+  const [isModulesPanelOpen, setIsModulesPanelOpen] = useState<boolean>(false);
   
   // Load all state from localStorage after mount to avoid hydration errors
   useEffect(() => {
@@ -241,6 +245,16 @@ export default function Home() {
       setModules(defaultModules);
     }
 
+    // Load saved answers
+    const storedAnswers = localStorage.getItem('savedAnswers');
+    if (storedAnswers) {
+      try {
+        setSavedAnswers(JSON.parse(storedAnswers));
+      } catch (error) {
+        console.error('Error loading saved answers:', error);
+      }
+    }
+
     // Load questions
     const storedQuestions = localStorage.getItem('adminEditedQuestions');
     if (storedQuestions) {
@@ -348,6 +362,52 @@ export default function Home() {
   const [moduleView, setModuleView] = useState<{ [key: number]: "videos" | "questions" | null }>({});
   const [selectedVideoType, setSelectedVideoType] = useState<{ [key: number]: "english" | "punjabi" | "hindi" | "activity" | null }>({});
 
+  // Load data from server file on page load
+  useEffect(() => {
+    const loadDataFromServer = async () => {
+      try {
+        const serverData = await loadAppDataFromServer();
+        
+        // Update modules if server has data
+        if (serverData.modules && serverData.modules.length > 0) {
+          const serverModules: Module[] = serverData.modules.map(m => ({
+            id: m.id,
+            title: m.title,
+            description: m.description,
+            color: m.color,
+          }));
+          setModules(serverModules);
+        }
+        
+        // Update questions if server has data
+        if (serverData.questions && Object.keys(serverData.questions).length > 0) {
+          const serverQuestions: { [key: number]: Question[] } = {};
+          Object.entries(serverData.questions).forEach(([moduleId, questions]) => {
+            serverQuestions[Number(moduleId)] = questions.map(q => ({
+              id: q.id,
+              question: q.question,
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+            }));
+          });
+          setModuleQuestions(serverQuestions);
+        }
+        
+        // Update answers if server has data
+        if (serverData.answers && Object.keys(serverData.answers).length > 0) {
+          setSavedAnswers(serverData.answers);
+        }
+        
+        console.log('Data loaded from server file');
+      } catch (error) {
+        console.error('Error loading data from server:', error);
+        // Fallback to localStorage if server load fails
+      }
+    };
+    
+    loadDataFromServer();
+  }, []);
+
   // Reload videos when a video type is selected to ensure fresh data
   useEffect(() => {
     const reloadVideosForModule = async (moduleId: number) => {
@@ -431,6 +491,9 @@ export default function Home() {
   const [editQuestionOptions, setEditQuestionOptions] = useState<string[]>([]);
   const [editCorrectAnswer, setEditCorrectAnswer] = useState<number | undefined>(undefined);
 
+  // Saved answers state - to allow editing submitted answers
+  const [savedAnswers, setSavedAnswers] = useState<{ [moduleId: number]: { [questionId: number]: string } }>({});
+
   const [editingModule, setEditingModule] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -446,7 +509,7 @@ export default function Home() {
     setEditDescription(module.description);
   };
 
-  const handleSaveModule = (moduleId: number) => {
+  const handleSaveModule = async (moduleId: number) => {
     if (!isAdmin) return; // Only allow saving if admin is logged in
     const updatedModules = modules.map(m => 
       m.id === moduleId 
@@ -454,10 +517,26 @@ export default function Home() {
         : m
     );
     setModules(updatedModules);
-    // Save to localStorage so all users can see admin edits
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
+    
+    // Save to both localStorage and server file
+    const modulesToSave: StoredModule[] = updatedModules.map(m => ({
+      id: m.id,
+      title: m.title,
+      description: m.description,
+      color: m.color,
+    }));
+    
+    try {
+      await saveModules(modulesToSave);
+      console.log('Module saved successfully to server file');
+    } catch (error) {
+      console.error('Error saving module:', error);
+      // Still save to localStorage as fallback
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
+      }
     }
+    
     setEditingModule(null);
     setEditTitle("");
     setEditDescription("");
@@ -478,7 +557,7 @@ export default function Home() {
     setEditCorrectAnswer(question.correctAnswer !== undefined ? question.correctAnswer : undefined);
   };
 
-  const handleSaveQuestion = () => {
+  const handleSaveQuestion = async () => {
     if (!isAdmin || !editingQuestion) return;
     
     // Validation
@@ -516,9 +595,23 @@ export default function Home() {
     
     setModuleQuestions(updatedModuleQuestions);
     
-    // Save to localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedModuleQuestions));
+    // Save to both localStorage and server file
+    const questionsToSave: StoredQuestion[] = updatedQuestions.map(q => ({
+      id: q.id,
+      question: q.question,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+    }));
+    
+    try {
+      await saveModuleQuestions(moduleId, questionsToSave);
+      console.log('Question saved successfully to server file');
+    } catch (error) {
+      console.error('Error saving question:', error);
+      // Still save to localStorage as fallback
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedModuleQuestions));
+      }
     }
     
     setEditingQuestion(null);
@@ -563,7 +656,7 @@ export default function Home() {
   };
 
   // Add new module function
-  const handleAddModule = () => {
+  const handleAddModule = async () => {
     if (!isAdmin) return;
     
     const newModuleId = Math.max(...modules.map(m => m.id), 0) + 1;
@@ -599,11 +692,32 @@ export default function Home() {
     };
     setVideos(updatedVideos);
 
-    // Save to localStorage (videos are stored in IndexedDB, not localStorage)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
-      localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedQuestions));
-      // Videos are stored in IndexedDB, not localStorage
+    // Save to both localStorage and server file
+    const modulesToSave: StoredModule[] = updatedModules.map(m => ({
+      id: m.id,
+      title: m.title,
+      description: m.description,
+      color: m.color,
+    }));
+    
+    const questionsToSave: StoredQuestion[] = updatedQuestions[newModuleId].map(q => ({
+      id: q.id,
+      question: q.question,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+    }));
+    
+    try {
+      await saveModules(modulesToSave);
+      await saveModuleQuestions(newModuleId, questionsToSave);
+      console.log('New module saved successfully to server file');
+    } catch (error) {
+      console.error('Error saving new module:', error);
+      // Still save to localStorage as fallback
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
+        localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedQuestions));
+      }
     }
   };
 
@@ -894,9 +1008,9 @@ export default function Home() {
     });
 
     // Format answers for email
-    const module = modules.find(m => m.id === moduleId);
-    const emailSubject = `${module?.title || `Module ${moduleId}`} Pre-Post Questions Answers`;
-    let emailBody = `${module?.title || `Module ${moduleId}`} Pre-Post Questions - Answers\n\n`;
+    const selectedModule = modules.find(m => m.id === moduleId);
+    const emailSubject = `${selectedModule?.title || `Module ${moduleId}`} Pre-Post Questions Answers`;
+    let emailBody = `${selectedModule?.title || `Module ${moduleId}`} Pre-Post Questions - Answers\n\n`;
     
     Object.entries(answers).forEach(([question, answer]) => {
       emailBody += `${question}: ${answer}\n`;
@@ -922,14 +1036,40 @@ export default function Home() {
       const result = await response.json();
 
       if (result.success) {
+        // Save answers to state and localStorage
+        const answersToSave: { [questionId: number]: string } = {};
+        questions.forEach((q) => {
+          const answer = formData.get(`question-${q.id}`);
+          if (answer) {
+            answersToSave[q.id] = answer as string;
+          }
+        });
+        
+        const updatedSavedAnswers = {
+          ...savedAnswers,
+          [moduleId]: answersToSave
+        };
+        setSavedAnswers(updatedSavedAnswers);
+        
+        // Save to both localStorage and server file
+        try {
+          await saveModuleAnswers(moduleId, answersToSave);
+          console.log('Answers saved successfully to server file');
+        } catch (error) {
+          console.error('Error saving answers:', error);
+          // Still save to localStorage as fallback
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('savedAnswers', JSON.stringify(updatedSavedAnswers));
+          }
+        }
+
         if (result.configured === false) {
-          alert('Answers submitted! However, email service is not configured. Please configure WEB3FORMS_ACCESS_KEY in .env.local to enable email sending. Check the browser console for email details.');
+          alert('Answers submitted and saved! However, email service is not configured. Please configure WEB3FORMS_ACCESS_KEY in .env.local to enable email sending. Check the browser console for email details.');
           console.log('Email details logged in server console. Configure email service to send emails.');
         } else {
-          alert('Your answers have been submitted successfully to adohealthicmr2025@gmail.com!');
+          alert('Your answers have been submitted and saved successfully to adohealthicmr2025@gmail.com!');
         }
-        // Reset form
-        event.currentTarget.reset();
+        // Don't reset form - keep answers visible for editing
       } else {
         alert('Failed to submit answers. Please try again.');
       }
@@ -953,12 +1093,15 @@ export default function Home() {
           if (isUserLoggedIn) handleUserLogout();
           if (isAdmin) handleAdminLogout();
         }}
+        onModulesClick={() => {
+          setIsModulesPanelOpen(true);
+        }}
       />
 
       {/* Unified Login Modal */}
       {showUserLogin && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 relative z-[201]">
             <div className="flex items-center justify-between mb-4">
               {isAdmin && isEditingLoginHeading ? (
                 <div className="flex items-center gap-2 flex-1">
@@ -1196,65 +1339,76 @@ export default function Home() {
       
       <RiskFactorsSection />
 
-      {/* Interactive E-Modules Section - Visible to logged-in users and admins */}
+      {/* Modules Slide Panel - Opens from right side */}
       {(isUserLoggedIn || isAdmin) && (
-      <section className="relative w-full px-6 md:px-8 py-8 md:py-12 overflow-hidden">
-        {/* Light Background */}
-        <div className="absolute inset-0 bg-blue-500"></div>
-        
-        {/* Decorative Elements */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
-        </div>
-
-        <div className="max-w-6xl mx-auto relative z-10">
-          {/* Section Header */}
-          <div className="text-center mb-6">
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 drop-shadow-lg">
-              Interactive E-Modules
-            </h2>
-            <p className="text-lg text-white/90 max-w-3xl mx-auto drop-shadow-md">
-              Eight comprehensive modules designed for adolescents aged 12-18 combining evidence-based content with purpose-specific for natural relevance.
-            </p>
-          </div>
-
-          {/* Colorful Bar */}
-          <div className="h-2 bg-blue-500 rounded-full mb-8 shadow-lg"></div>
-
-          {/* Add Module Button - Only for Admin */}
-          {isAdmin && (
-            <div className="mb-8 flex justify-center">
+        <>
+          {/* Overlay */}
+          {isModulesPanelOpen && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300"
+              onClick={() => setIsModulesPanelOpen(false)}
+            ></div>
+          )}
+          
+          {/* Slide Panel */}
+          <div className={`fixed top-0 right-0 h-full w-full md:w-[600px] lg:w-[700px] bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out overflow-y-auto border-l-4 border-blue-600 ${
+            isModulesPanelOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}>
+            {/* Panel Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 border-b-2 border-blue-500 px-6 py-4 flex items-center justify-between z-10 shadow-sm">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-700 via-purple-700 to-pink-700 bg-clip-text text-transparent">Interactive E-Modules</h2>
               <button
-                onClick={handleAddModule}
-                className="px-6 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center gap-2"
+                onClick={() => setIsModulesPanelOpen(false)}
+                className="p-2 hover:bg-white/80 rounded-lg transition-colors text-gray-700 hover:text-red-600"
+                aria-label="Close panel"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
-                Add Module
               </button>
             </div>
-          )}
 
-          {/* Editable Modules */}
-          {modules.map((module) => {
+            {/* Panel Content */}
+            <div className="px-6 py-8">
+              <p className="text-gray-800 mb-8 leading-relaxed bg-white/70 backdrop-blur-sm p-4 rounded-lg border-2 border-blue-400">
+                Eight comprehensive modules designed for adolescents aged 12-18 combining evidence-based content with purpose-specific for natural relevance.
+              </p>
+
+              {/* Add Module Button - Only for Admin */}
+              {isAdmin && (
+                <div className="mb-8 flex justify-center">
+                  <button
+                    onClick={handleAddModule}
+                    className="px-6 py-3 bg-green-50 text-green-700 font-semibold rounded-xl hover:bg-green-100 border border-green-200 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Module
+                  </button>
+                </div>
+              )}
+
+              {/* Editable Modules */}
+              <div id="modules-section">
+              {modules.map((module) => {
             const colorClasses = getColorClasses(module.color);
             const isEditing = editingModule === module.id;
             
             return (
               <>
-                <div key={module.id} className="bg-white/10 backdrop-blur-sm rounded-2xl shadow-xl hover:bg-white/20 transition-all duration-200 border-2 border-white/30 mb-6 hover:scale-[1.01]">
+                <div key={module.id} className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 border-2 border-gray-400 mb-6 hover:scale-[1.01] hover:border-blue-500">
                 <div className="p-6 md:p-8 flex items-start gap-6">
                   {/* Icon */}
-                  <div className={`flex-shrink-0 w-20 h-20 ${colorClasses.bg} rounded-lg flex items-center justify-center`}>
+                  <div className={`flex-shrink-0 w-20 h-20 ${colorClasses.bg.replace('500', '100')} rounded-xl flex items-center justify-center border-2 ${colorClasses.border.replace('300', '200')}`}>
                     <svg
                       width="40"
                       height="40"
                       viewBox="0 0 24 24"
                       fill="none"
                       xmlns="http://www.w3.org/2000/svg"
-                      className="text-white"
+                      className={colorClasses.bg.replace('bg-', 'text-').replace('500', '600')}
                     >
                       <path
                         d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
@@ -1266,7 +1420,7 @@ export default function Home() {
                   {/* Content */}
                   <div className="flex-1">
                     <div className="flex items-start justify-between gap-4 mb-2">
-                      <h3 className="text-2xl font-bold text-white drop-shadow-md">
+                      <h3 className="text-2xl font-bold text-gray-900">
                         {module.title}
                       </h3>
                       {isAdmin && !isEditing && (
@@ -1359,7 +1513,7 @@ export default function Home() {
                       </div>
                     ) : (
                       <>
-                        <p className="text-white/90 mb-6 drop-shadow-sm">
+                        <p className="text-gray-600 mb-6 leading-relaxed">
                           {module.description}
                         </p>
                       </>
@@ -1380,7 +1534,7 @@ export default function Home() {
                             }));
                           }
                         }}
-                        className="text-orange-500 hover:text-orange-600 font-semibold text-base flex items-center gap-2 transition-colors"
+                        className="text-orange-600 hover:text-orange-700 font-semibold text-base flex items-center gap-2 transition-colors px-4 py-2 bg-orange-50 hover:bg-orange-100 rounded-lg border border-orange-100"
                       >
                         {moduleDetailsOpen[module.id] ? "Hide Details" : "View Details"}
                         <svg
@@ -1417,14 +1571,14 @@ export default function Home() {
                       className={`p-6 ${colorClasses.bg === "bg-pink-500" ? "bg-pink-50" : colorClasses.bg === "bg-blue-500" ? "bg-blue-50" : colorClasses.bg === "bg-green-500" ? "bg-green-50" : colorClasses.bg === "bg-purple-500" ? "bg-purple-50" : colorClasses.bg === "bg-orange-500" ? "bg-orange-50" : colorClasses.bg === "bg-indigo-500" ? "bg-indigo-50" : colorClasses.bg === "bg-teal-500" ? "bg-teal-50" : "bg-red-50"} border-2 ${colorClasses.border} rounded-lg ${colorClasses.hover} hover:shadow-lg transition-all duration-200 text-left`}
                     >
                       <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 ${colorClasses.bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                        <div className={`w-12 h-12 ${colorClasses.bg.replace('500', '100')} rounded-lg flex items-center justify-center flex-shrink-0 border-2 ${colorClasses.border.replace('300', '200')}`}>
                           <svg
                             width="24"
                             height="24"
                             viewBox="0 0 24 24"
                             fill="none"
                             xmlns="http://www.w3.org/2000/svg"
-                            className="text-white"
+                            className={colorClasses.bg.replace('bg-', 'text-').replace('500', '600')}
                           >
                             <path
                               d="M8 5v14l11-7z"
@@ -1445,17 +1599,17 @@ export default function Home() {
                         ...prev,
                         [module.id]: prev[module.id] === "questions" ? null : "questions"
                       }))}
-                      className="p-6 bg-green-50 border-2 border-green-300 rounded-lg hover:border-green-400 hover:shadow-lg transition-all duration-200 text-left"
+                      className="p-6 bg-green-50 border-2 border-green-200 rounded-lg hover:border-green-300 hover:shadow-lg transition-all duration-200 text-left"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0 border-2 border-green-200">
                           <svg
                             width="24"
                             height="24"
                             viewBox="0 0 24 24"
                             fill="none"
                             xmlns="http://www.w3.org/2000/svg"
-                            className="text-white"
+                            className="text-green-600"
                           >
                             <path
                               d="M9 11H1l4-4m0 0l4 4m-4-4v12"
@@ -1648,7 +1802,7 @@ export default function Home() {
                                 <div className="relative mb-6">
                                   <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mb-4">
                                     <p className="text-sm text-yellow-800 font-medium mb-2">
-                                      ⚠️ Video uploaded but not saved. Click "Save Video" to make it available to all users.
+                                      ⚠️ Video uploaded but not saved. Click &quot;Save Video&quot; to make it available to all users.
                                     </p>
                                   </div>
                                   <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
@@ -1787,7 +1941,7 @@ export default function Home() {
                                 <button
                                   type="button"
                                   onClick={() => handleEditQuestion(module.id, q)}
-                                  className="absolute top-4 right-4 p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  className="absolute top-4 right-4 p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 border border-transparent hover:border-blue-200"
                                   title="Edit Question"
                                 >
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1831,7 +1985,7 @@ export default function Home() {
                                             <button
                                               type="button"
                                               onClick={() => handleRemoveQuestionOption(index)}
-                                              className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                                              className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 border border-red-200 transition-all duration-200 text-sm font-medium"
                                             >
                                               Remove
                                             </button>
@@ -1841,7 +1995,7 @@ export default function Home() {
                                       <button
                                         type="button"
                                         onClick={handleAddQuestionOption}
-                                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                                        className="px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 border border-green-200 transition-all duration-200 text-sm font-medium"
                                       >
                                         Add Option
                                       </button>
@@ -1890,14 +2044,14 @@ export default function Home() {
                                     <button
                                       type="button"
                                       onClick={handleSaveQuestion}
-                                      className="px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors"
+                                      className="px-6 py-2.5 bg-blue-50 text-blue-600 font-semibold rounded-lg hover:bg-blue-100 border border-blue-200 transition-all duration-200 shadow-sm hover:shadow-md"
                                     >
                                       Save Question
                                     </button>
                                     <button
                                       type="button"
                                       onClick={handleCancelEditQuestion}
-                                      className="px-6 py-2 bg-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-400 transition-colors"
+                                      className="px-6 py-2.5 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 border border-gray-200 transition-all duration-200"
                                     >
                                       Cancel
                                     </button>
@@ -1926,6 +2080,7 @@ export default function Home() {
                                           name={`question-${q.id}`}
                                           value={option}
                                           required
+                                          defaultChecked={savedAnswers[module.id]?.[q.id] === option}
                                           className="w-5 h-5 text-pink-600 border-gray-300 focus:ring-pink-500 focus:ring-2 cursor-pointer"
                                         />
                                         <span className="text-gray-700 font-medium flex-1">{option}</span>
@@ -1943,6 +2098,9 @@ export default function Home() {
                       <div className="mt-10 pt-6 border-t border-gray-200 flex flex-col sm:flex-row gap-4 justify-between items-center">
                         <p className="text-sm text-gray-500">
                           <span className="text-red-500">*</span> Required fields
+                          {savedAnswers[module.id] && Object.keys(savedAnswers[module.id]).length > 0 && (
+                            <span className="ml-2 text-green-600 font-medium">• Answers saved - you can edit and resubmit</span>
+                          )}
                         </p>
                         <div className="flex gap-4">
                           <button
@@ -1952,16 +2110,23 @@ export default function Home() {
                               if (form) {
                                 form.reset();
                               }
+                              // Clear saved answers for this module
+                              const updatedAnswers = { ...savedAnswers };
+                              delete updatedAnswers[module.id];
+                              setSavedAnswers(updatedAnswers);
+                              if (typeof window !== 'undefined') {
+                                localStorage.setItem('savedAnswers', JSON.stringify(updatedAnswers));
+                              }
                             }}
-                            className="px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                            className="px-6 py-3 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 border border-gray-200 transition-all duration-200"
                           >
                             Clear Form
                           </button>
                           <button
                             type="submit"
-                            className="px-8 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                            className="px-8 py-3 bg-green-50 text-green-600 font-semibold rounded-lg hover:bg-green-100 border border-green-200 transition-all duration-200 shadow-sm hover:shadow-md"
                           >
-                            Submit Answers
+                            {savedAnswers[module.id] && Object.keys(savedAnswers[module.id]).length > 0 ? 'Update & Resubmit' : 'Submit Answers'}
                           </button>
                         </div>
                       </div>
@@ -1972,9 +2137,10 @@ export default function Home() {
               </>
             );
           })}
-
-        </div>
-      </section>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       <Footer />

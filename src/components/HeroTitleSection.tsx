@@ -18,8 +18,8 @@
           }}
         ></div>
         
-        {/* Light overlay for better text readability */}
-        <div className="absolute inset-0 bg-white/60 z-[1]"></div>
+        {/* Light gradient overlay for better text readability */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/70 via-orange-50/50 to-yellow-50/50 z-[1]"></div>
         
         {/* Animated Background Shapes */}
         <div className="absolute inset-0 overflow-hidden z-[1] bgimg">
@@ -53,8 +53,8 @@
             </div>
           </div>
 
-          <h1 className="text-[18px] font-bold text-gray-800 mb-6 leading-tight drop-shadow-lg text-left">
-            <span className="text-white bg-orange-500 px-4 py-2 rounded-lg shadow-xl inline-block mb-2 md:mb-0">Adohealth Initiative</span>
+          <h1 className="text-[18px] font-bold text-gray-800 mb-6 leading-tight text-left">
+            <span className="text-orange-700 bg-orange-50 px-4 py-2 rounded-lg shadow-sm border border-orange-100 inline-block mb-2 md:mb-0">Adohealth Initiative</span>
             <span className="text-gray-800 block text-left md:inline-block md:ml-2"> : A School-Based Cluster Randomised Controlled Trial of an E-Wellness Initiative for Nurturing Healthy Lifestyle Choices among Adolescents in SAS Nagar, Punjab.</span>
           </h1>
 
