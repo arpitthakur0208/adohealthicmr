@@ -12,9 +12,15 @@ interface ImageSectionProps {
 
 export default function ImageSection({ selectedImage, isAdmin, onImageUpload, onRemoveImage }: ImageSectionProps) {
   return (
-    <section className="relative w-full px-6 md:px-8 py-8 md:py-12 overflow-hidden">
-      {/* Light Gradient Background with Darker Middle */}
-      <div className="absolute inset-0 bg-gradient-to-br from-teal-100 via-cyan-400 to-blue-100"></div>
+    <section className="relative w-full px-6 md:px-8 py-8 md:py-12 overflow-hidden border-b-2 border-yellow-500">
+      {/* Dark Blue Background */}
+      <div className="absolute inset-0 bg-slate-800"></div>
+      
+      {/* Subtle Decorative Elements */}
+      <div className="absolute inset-0 opacity-20">
+        <div className="absolute top-10 right-10 w-64 h-64 bg-blue-800 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-10 left-10 w-64 h-64 bg-yellow-500 rounded-full blur-3xl opacity-30"></div>
+      </div>
       
       {/* Decorative Elements */}
       {/* <div className="absolute inset-0 opacity-10">

@@ -113,6 +113,22 @@ export default function Home() {
   // Modules slide panel state
   const [isModulesPanelOpen, setIsModulesPanelOpen] = useState<boolean>(false);
   
+  // Disable body scroll when dropdown is open
+  useEffect(() => {
+    if (isModulesPanelOpen) {
+      // Disable scroll on body
+      document.body.style.overflow = 'hidden';
+    } else {
+      // Re-enable scroll on body
+      document.body.style.overflow = '';
+    }
+    
+    // Cleanup function to restore scroll when component unmounts
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isModulesPanelOpen]);
+  
   // Load all state from localStorage after mount to avoid hydration errors
   useEffect(() => {
     // Load authentication state
@@ -532,9 +548,9 @@ export default function Home() {
     } catch (error) {
       console.error('Error saving module:', error);
       // Still save to localStorage as fallback
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
-      }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
+    }
     }
     
     setEditingModule(null);
@@ -609,8 +625,8 @@ export default function Home() {
     } catch (error) {
       console.error('Error saving question:', error);
       // Still save to localStorage as fallback
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedModuleQuestions));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedModuleQuestions));
       }
     }
     
@@ -714,9 +730,9 @@ export default function Home() {
     } catch (error) {
       console.error('Error saving new module:', error);
       // Still save to localStorage as fallback
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
-        localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedQuestions));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
+      localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedQuestions));
       }
     }
   };
@@ -1080,7 +1096,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-slate-800">
       <Header
         isUserLoggedIn={isUserLoggedIn}
         isAdmin={isAdmin}
@@ -1101,7 +1117,7 @@ export default function Home() {
       {/* Unified Login Modal */}
       {showUserLogin && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 relative z-[201]">
+          <div className="bg-slate-700 rounded-lg shadow-2xl max-w-md w-full p-6 relative z-[201] border-2 border-yellow-500">
             <div className="flex items-center justify-between mb-4">
               {isAdmin && isEditingLoginHeading ? (
                 <div className="flex items-center gap-2 flex-1">
@@ -1109,7 +1125,7 @@ export default function Home() {
                     type="text"
                     value={loginHeading}
                     onChange={(e) => setLoginHeading(e.target.value)}
-                    className="text-2xl font-bold text-gray-900 border-2 border-orange-500 rounded px-2 py-1 flex-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="text-2xl font-bold text-yellow-400 border-2 border-yellow-500 rounded px-2 py-1 flex-1 focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-slate-700 text-white"
                     autoFocus
                     onBlur={() => {
                       setIsEditingLoginHeading(false);
@@ -1134,7 +1150,7 @@ export default function Home() {
                 </div>
               ) : (
                 <h2 
-                  className="text-2xl font-bold text-gray-900"
+                  className="text-2xl font-bold text-yellow-400"
                   onDoubleClick={() => {
                     if (isAdmin) {
                       setIsEditingLoginHeading(true);
@@ -1156,7 +1172,7 @@ export default function Home() {
                   setAdminPassword("");
                   setAdminLoginError("");
                 }}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 hover:text-yellow-400 transition-colors"
               >
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18" />
@@ -1167,7 +1183,7 @@ export default function Home() {
 
             {/* Login Type Toggle */}
             <div className="mb-6">
-              <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+              <div className="flex gap-2 bg-slate-700 p-1 rounded-lg border border-slate-600">
                 <button
                   type="button"
                   onClick={() => {
@@ -1177,8 +1193,8 @@ export default function Home() {
                   }}
                   className={`flex-1 px-4 py-2 rounded-md font-semibold text-sm transition-colors ${
                     loginMode === 'user'
-                      ? 'bg-white text-orange-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-yellow-500 text-slate-900 shadow-lg'
+                      : 'text-gray-300 hover:text-yellow-400 hover:bg-slate-600'
                   }`}
                 >
                   User Login
@@ -1193,8 +1209,8 @@ export default function Home() {
                   }}
                   className={`flex-1 px-4 py-2 rounded-md font-semibold text-sm transition-colors ${
                     loginMode === 'admin'
-                      ? 'bg-white text-green-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
+                      ? 'bg-yellow-500 text-slate-900 shadow-lg'
+                      : 'text-gray-300 hover:text-yellow-400 hover:bg-slate-600'
                   }`}
                 >
                   Admin Login
@@ -1206,21 +1222,21 @@ export default function Home() {
             {loginMode === 'user' && (
               <form onSubmit={handleUserLogin}>
                 {/* Available Test Users */}
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-xs font-semibold text-blue-900 mb-2">Available Test Users:</p>
+                <div className="mb-4 p-3 bg-slate-700 border-2 border-yellow-500 rounded-lg shadow-sm">
+                  <p className="text-xs font-semibold text-yellow-400 mb-2">Available Test Users:</p>
                   <div className="space-y-1">
                     {USER_CREDENTIALS.map((user, idx) => (
-                      <div key={idx} className="text-xs text-blue-700">
+                      <div key={idx} className="text-xs text-gray-300 font-medium">
                         <span className="font-medium">{user.name}</span> - {user.email}
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs text-blue-600 mt-2 italic">Or login with any name/email</p>
+                  <p className="text-xs text-yellow-400 mt-2 italic font-medium">Or login with any name/email</p>
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Name <span className="text-gray-500 text-xs">(Optional)</span>
+                  <label className="block text-sm font-medium text-yellow-400 mb-2">
+                    Name <span className="text-gray-400 text-xs">(Optional)</span>
                   </label>
                   <input
                     type="text"
@@ -1229,14 +1245,14 @@ export default function Home() {
                       setLoginName(e.target.value);
                       setLoginError("");
                     }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                    className="w-full px-4 py-2 border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
                     placeholder="Enter your name"
                     autoFocus
                   />
                 </div>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email <span className="text-gray-500 text-xs">(Optional)</span>
+                  <label className="block text-sm font-medium text-yellow-400 mb-2">
+                    Email <span className="text-gray-400 text-xs">(Optional)</span>
                   </label>
                   <input
                     type="email"
@@ -1245,13 +1261,13 @@ export default function Home() {
                       setLoginEmail(e.target.value);
                       setLoginError("");
                     }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                    className="w-full px-4 py-2 border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
                     placeholder="Enter your email"
                   />
                 </div>
                 {loginError && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-600">{loginError}</p>
+                  <div className="mb-4 p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
+                    <p className="text-sm text-red-300 font-medium">{loginError}</p>
                   </div>
                 )}
                 <div className="flex gap-3">
@@ -1263,13 +1279,13 @@ export default function Home() {
                       setLoginEmail("");
                       setLoginError("");
                     }}
-                    className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                    className="flex-1 px-4 py-2 bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors"
+                    className="flex-1 px-4 py-2 bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl"
                   >
                     Login
                   </button>
@@ -1281,7 +1297,7 @@ export default function Home() {
             {loginMode === 'admin' && (
               <form onSubmit={handleAdminLogin}>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-yellow-400 mb-2">
                     Password
                   </label>
                   <input
@@ -1291,15 +1307,15 @@ export default function Home() {
                       setAdminPassword(e.target.value);
                       setAdminLoginError("");
                     }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                    className="w-full px-4 py-2 border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
                     placeholder="Enter admin password"
                     autoFocus
                   />
-                  <p className="mt-1 text-xs text-gray-500">Default password: admin123</p>
+                  <p className="mt-1 text-xs text-yellow-400 font-medium">Default password: admin123</p>
                 </div>
                 {adminLoginError && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm text-red-600">{adminLoginError}</p>
+                  <div className="mb-4 p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
+                    <p className="text-sm text-red-300 font-medium">{adminLoginError}</p>
                   </div>
                 )}
                 <div className="flex gap-3">
@@ -1311,13 +1327,13 @@ export default function Home() {
                       setAdminPassword("");
                       setAdminLoginError("");
                     }}
-                    className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                    className="flex-1 px-4 py-2 bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                    className="flex-1 px-4 py-2 bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl"
                   >
                     Admin Login
                   </button>
@@ -1339,72 +1355,72 @@ export default function Home() {
       
       <RiskFactorsSection />
 
-      {/* Modules Slide Panel - Opens from right side */}
+      {/* Modules Dropdown - Opens below Modules button */}
       {(isUserLoggedIn || isAdmin) && (
         <>
           {/* Overlay */}
           {isModulesPanelOpen && (
             <div 
-              className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300"
+              className="fixed inset-0 bg-black bg-opacity-30 z-[90] transition-opacity duration-300"
               onClick={() => setIsModulesPanelOpen(false)}
             ></div>
           )}
           
-          {/* Slide Panel */}
-          <div className={`fixed top-0 right-0 h-full w-full md:w-[600px] lg:w-[700px] bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out overflow-y-auto border-l-4 border-blue-600 ${
-            isModulesPanelOpen ? 'translate-x-0' : 'translate-x-full'
+          {/* Dropdown Panel */}
+          <div className={`fixed top-[100px] right-0 w-[500px] max-w-[90vw] h-[580px] bg-slate-700 shadow-2xl z-[110] transform transition-all duration-300 ease-in-out overflow-hidden rounded-lg border-2 border-yellow-500 ${
+            isModulesPanelOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-[-10px] scale-95 pointer-events-none'
           }`}>
             {/* Panel Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-blue-300 via-purple-300 to-pink-300 border-b-2 border-blue-500 px-6 py-4 flex items-center justify-between z-10 shadow-sm">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-700 via-purple-700 to-pink-700 bg-clip-text text-transparent">Interactive E-Modules</h2>
+            <div className="sticky top-0 bg-slate-600 border-b-2 border-yellow-500 px-4 py-3 flex items-center justify-between z-10 shadow-sm">
+              <h2 className="text-lg font-bold text-yellow-400">Interactive E-Modules</h2>
               <button
                 onClick={() => setIsModulesPanelOpen(false)}
-                className="p-2 hover:bg-white/80 rounded-lg transition-colors text-gray-700 hover:text-red-600"
+                className="p-1.5 hover:bg-slate-600 rounded-lg transition-colors text-gray-300 hover:text-yellow-400"
                 aria-label="Close panel"
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="18" y1="6" x2="6" y2="18"></line>
                   <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
               </button>
-            </div>
+        </div>
 
             {/* Panel Content */}
-            <div className="px-6 py-8">
-              <p className="text-gray-800 mb-8 leading-relaxed bg-white/70 backdrop-blur-sm p-4 rounded-lg border-2 border-blue-400">
-                Eight comprehensive modules designed for adolescents aged 12-18 combining evidence-based content with purpose-specific for natural relevance.
-              </p>
+            <div className="px-4 py-4 overflow-y-auto h-[calc(600px-60px)]">
+              <p className="text-gray-200 mb-4 text-sm leading-relaxed bg-slate-700 backdrop-blur-sm p-3 rounded-lg border-2 border-yellow-500 shadow-sm font-medium">
+              Eight comprehensive modules designed for adolescents aged 12-18 combining evidence-based content with purpose-specific for natural relevance.
+            </p>
 
-              {/* Add Module Button - Only for Admin */}
-              {isAdmin && (
-                <div className="mb-8 flex justify-center">
-                  <button
-                    onClick={handleAddModule}
-                    className="px-6 py-3 bg-green-50 text-green-700 font-semibold rounded-xl hover:bg-green-100 border border-green-200 transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Add Module
-                  </button>
-                </div>
-              )}
+          {/* Add Module Button - Only for Admin */}
+          {isAdmin && (
+            <div className="mb-4 flex justify-center">
+              <button
+                onClick={handleAddModule}
+                    className="px-4 py-2 bg-yellow-500 text-slate-900 text-sm font-semibold rounded-lg hover:bg-yellow-400 border-2 border-yellow-400 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Module
+              </button>
+            </div>
+          )}
 
-              {/* Editable Modules */}
+          {/* Editable Modules */}
               <div id="modules-section">
-              {modules.map((module) => {
+          {modules.map((module) => {
             const colorClasses = getColorClasses(module.color);
             const isEditing = editingModule === module.id;
             
             return (
               <>
-                <div key={module.id} className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 border-2 border-gray-400 mb-6 hover:scale-[1.01] hover:border-blue-500">
-                <div className="p-6 md:p-8 flex items-start gap-6">
+                <div key={module.id} className="bg-slate-600 backdrop-blur-sm rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-2 border-slate-500 mb-3 hover:border-yellow-500">
+                <div className="p-3 flex items-start gap-3">
                   {/* Icon */}
-                  <div className={`flex-shrink-0 w-20 h-20 ${colorClasses.bg.replace('500', '100')} rounded-xl flex items-center justify-center border-2 ${colorClasses.border.replace('300', '200')}`}>
+                  <div className={`flex-shrink-0 w-10 h-10 ${colorClasses.bg.replace('500', '100')} rounded-lg flex items-center justify-center border ${colorClasses.border.replace('300', '200')}`}>
                     <svg
-                      width="40"
-                      height="40"
+                      width="20"
+                      height="20"
                       viewBox="0 0 24 24"
                       fill="none"
                       xmlns="http://www.w3.org/2000/svg"
@@ -1418,21 +1434,21 @@ export default function Home() {
                   </div>
 
                   {/* Content */}
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between gap-4 mb-2">
-                      <h3 className="text-2xl font-bold text-gray-900">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <h3 className="text-sm font-bold text-yellow-400 truncate">
                         {module.title}
                       </h3>
                       {isAdmin && !isEditing && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 flex-shrink-0">
                           <button
                             onClick={() => handleEditModule(module)}
-                            className="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/20 rounded-lg"
+                            className="text-yellow-400 hover:text-yellow-300 transition-colors p-1 hover:bg-slate-600 rounded"
                             title="Edit module"
                           >
                             <svg
-                              width="20"
-                              height="20"
+                              width="16"
+                              height="16"
                               viewBox="0 0 24 24"
                               fill="none"
                               stroke="currentColor"
@@ -1446,12 +1462,12 @@ export default function Home() {
                           </button>
                           <button
                             onClick={() => handleRemoveModule(module.id)}
-                            className="text-red-300 hover:text-red-200 transition-colors p-2 hover:bg-red-500/30 rounded-lg"
+                            className="text-yellow-400 hover:text-red-400 transition-colors p-1 hover:bg-slate-600 rounded"
                             title="Remove module"
                           >
                             <svg
-                              width="20"
-                              height="20"
+                              width="16"
+                              height="16"
                               viewBox="0 0 24 24"
                               fill="none"
                               stroke="currentColor"
@@ -1471,41 +1487,41 @@ export default function Home() {
                     </div>
 
                     {isEditing ? (
-                      <div className="space-y-4 mb-6">
+                      <div className="space-y-2 mb-3">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-xs font-medium text-yellow-400 mb-1">
                             Title
                           </label>
                           <input
                             type="text"
                             value={editTitle}
                             onChange={(e) => setEditTitle(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                            className="w-full px-2 py-1.5 text-sm border-2 border-yellow-500 rounded focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-800 text-white"
                             placeholder="Enter module title"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-xs font-medium text-yellow-400 mb-1">
                             Description
                           </label>
                           <textarea
                             value={editDescription}
                             onChange={(e) => setEditDescription(e.target.value)}
-                            rows={4}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none resize-none"
+                            rows={3}
+                            className="w-full px-2 py-1.5 text-sm border-2 border-yellow-500 rounded focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none resize-none bg-slate-800 text-white"
                             placeholder="Enter module description"
                           />
                         </div>
-                        <div className="flex gap-3">
+                        <div className="flex gap-2">
                           <button
                             onClick={() => handleSaveModule(module.id)}
-                            className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                            className="px-3 py-1.5 text-sm bg-yellow-500 text-slate-900 font-semibold rounded hover:bg-yellow-400 transition-all shadow-md"
                           >
                             Save
                           </button>
                           <button
                             onClick={handleCancelEdit}
-                            className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                            className="px-3 py-1.5 text-sm bg-slate-600 text-gray-200 font-semibold rounded hover:bg-slate-500 transition-all shadow-md"
                           >
                             Cancel
                           </button>
@@ -1513,7 +1529,7 @@ export default function Home() {
                       </div>
                     ) : (
                       <>
-                        <p className="text-gray-600 mb-6 leading-relaxed">
+                        <p className="text-gray-300 mb-2 text-xs leading-relaxed line-clamp-2 font-medium">
                           {module.description}
                         </p>
                       </>
@@ -1534,11 +1550,11 @@ export default function Home() {
                             }));
                           }
                         }}
-                        className="text-orange-600 hover:text-orange-700 font-semibold text-base flex items-center gap-2 transition-colors px-4 py-2 bg-orange-50 hover:bg-orange-100 rounded-lg border border-orange-100"
+                        className="text-orange-600 hover:text-orange-700 font-semibold text-xs flex items-center gap-1 transition-colors px-2 py-1 bg-orange-50 hover:bg-orange-100 rounded border border-orange-100"
                       >
-                        {moduleDetailsOpen[module.id] ? "Hide Details" : "View Details"}
+                        {moduleDetailsOpen[module.id] ? "Hide" : "Details"}
                         <svg
-                          className={`w-5 h-5 transition-transform duration-200 ${
+                          className={`w-3 h-3 transition-transform duration-200 ${
                             moduleDetailsOpen[module.id] ? "rotate-180" : ""
                           }`}
                           fill="none"
@@ -1561,20 +1577,20 @@ export default function Home() {
               {/* Two Buttons - Shown when View Details is clicked for this module */}
               {moduleDetailsOpen[module.id] && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                  <div className="grid grid-cols-1 gap-2 mb-3">
                     {/* Module Videos Button */}
                     <button
                       onClick={() => setModuleView(prev => ({
                         ...prev,
                         [module.id]: prev[module.id] === "videos" ? null : "videos"
                       }))}
-                      className={`p-6 ${colorClasses.bg === "bg-pink-500" ? "bg-pink-50" : colorClasses.bg === "bg-blue-500" ? "bg-blue-50" : colorClasses.bg === "bg-green-500" ? "bg-green-50" : colorClasses.bg === "bg-purple-500" ? "bg-purple-50" : colorClasses.bg === "bg-orange-500" ? "bg-orange-50" : colorClasses.bg === "bg-indigo-500" ? "bg-indigo-50" : colorClasses.bg === "bg-teal-500" ? "bg-teal-50" : "bg-red-50"} border-2 ${colorClasses.border} rounded-lg ${colorClasses.hover} hover:shadow-lg transition-all duration-200 text-left`}
+                      className={`p-2 ${colorClasses.bg === "bg-pink-500" ? "bg-pink-50" : colorClasses.bg === "bg-blue-500" ? "bg-blue-50" : colorClasses.bg === "bg-green-500" ? "bg-green-50" : colorClasses.bg === "bg-purple-500" ? "bg-purple-50" : colorClasses.bg === "bg-orange-500" ? "bg-orange-50" : colorClasses.bg === "bg-indigo-500" ? "bg-indigo-50" : colorClasses.bg === "bg-teal-500" ? "bg-teal-50" : "bg-red-50"} border ${colorClasses.border} rounded hover:shadow-md transition-all duration-200 text-left`}
                     >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 ${colorClasses.bg.replace('500', '100')} rounded-lg flex items-center justify-center flex-shrink-0 border-2 ${colorClasses.border.replace('300', '200')}`}>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 ${colorClasses.bg.replace('500', '100')} rounded flex items-center justify-center flex-shrink-0 border ${colorClasses.border.replace('300', '200')}`}>
                           <svg
-                            width="24"
-                            height="24"
+                            width="16"
+                            height="16"
                             viewBox="0 0 24 24"
                             fill="none"
                             xmlns="http://www.w3.org/2000/svg"
@@ -1587,8 +1603,7 @@ export default function Home() {
                           </svg>
                         </div>
                         <div>
-                          <h4 className="text-lg font-bold text-gray-900 mb-1">{module.title} Videos</h4>
-                          <p className="text-sm text-gray-600">Upload and preview module videos</p>
+                          <h4 className="text-xs font-bold text-gray-900">Videos</h4>
                         </div>
                       </div>
                     </button>
@@ -1599,13 +1614,13 @@ export default function Home() {
                         ...prev,
                         [module.id]: prev[module.id] === "questions" ? null : "questions"
                       }))}
-                      className="p-6 bg-green-50 border-2 border-green-200 rounded-lg hover:border-green-300 hover:shadow-lg transition-all duration-200 text-left"
+                      className="p-2 bg-green-50 border border-green-200 rounded hover:border-green-300 hover:shadow-md transition-all duration-200 text-left"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0 border-2 border-green-200">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center flex-shrink-0 border border-green-200">
                           <svg
-                            width="24"
-                            height="24"
+                            width="16"
+                            height="16"
                             viewBox="0 0 24 24"
                             fill="none"
                             xmlns="http://www.w3.org/2000/svg"
@@ -1630,8 +1645,7 @@ export default function Home() {
                           </svg>
                         </div>
                         <div>
-                          <h4 className="text-lg font-bold text-gray-900 mb-1">Pre-Post Questions</h4>
-                          <p className="text-sm text-gray-600">Answer pre and post assessment questions</p>
+                          <h4 className="text-xs font-bold text-gray-900">Questions</h4>
                         </div>
                       </div>
                     </button>
@@ -1643,9 +1657,9 @@ export default function Home() {
                     const currentVideoType = selectedVideoType[module.id];
                     
                     return (
-                      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-8 md:p-10 mb-8">
-                        <div className="flex items-center justify-between mb-6">
-                          <h3 className="text-2xl font-bold text-gray-900">{module.title} Videos</h3>
+                      <div className="bg-white rounded-lg shadow-md border border-gray-200 p-3 mb-3">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-sm font-bold text-gray-900">Videos</h3>
                           {currentVideoType && (
                             <button
                               onClick={() => setSelectedVideoType(prev => ({ ...prev, [module.id]: null }))}
@@ -1927,15 +1941,15 @@ export default function Home() {
 
                   {/* Module Questions Form - Shown when Pre-Post Questions button is clicked */}
                   {moduleView[module.id] === "questions" && (
-                    <form className="bg-white rounded-lg shadow-lg border border-gray-200 p-8 md:p-10 mb-8" onSubmit={(e) => handleSubmitAnswers(e, module.id)}>
-                      <div className="space-y-8">
+                    <form className="bg-white rounded-lg shadow-md border border-gray-200 p-3 mb-3" onSubmit={(e) => handleSubmitAnswers(e, module.id)}>
+                      <div className="space-y-3">
                         {(moduleQuestions[module.id] || []).map((q) => {
                           const isEditing = editingQuestion?.moduleId === module.id && editingQuestion?.questionId === q.id;
                           
                           return (
                             <fieldset
                               key={q.id}
-                              className="border border-gray-200 rounded-lg p-6 hover:border-pink-300 transition-colors relative"
+                              className="border border-gray-200 rounded-lg p-4 hover:border-pink-300 transition-colors relative"
                             >
                               {isAdmin && !isEditing && (
                                 <button
@@ -1950,7 +1964,7 @@ export default function Home() {
                                 </button>
                               )}
                               
-                              <legend className="px-3 text-lg font-bold text-gray-900">
+                              <legend className="px-3 text-sm font-bold text-gray-900">
                                 Question {q.id} <span className="text-red-500">*</span>
                               </legend>
                               
@@ -2025,7 +2039,7 @@ export default function Home() {
                                             onChange={() => setEditCorrectAnswer(index)}
                                             className="w-5 h-5 text-green-600 border-gray-300 focus:ring-green-500 focus:ring-2 cursor-pointer"
                                           />
-                                          <span className="text-gray-700 font-medium flex-1">
+                                          <span className="text-gray-700 font-medium text-sm flex-1">
                                             Option {index + 1}: {option || `(Empty option ${index + 1})`}
                                           </span>
                                           {editCorrectAnswer === index && (
@@ -2060,10 +2074,10 @@ export default function Home() {
                               ) : (
                                 <>
                                   <div className="mt-4 mb-6">
-                                    <label className="block text-base font-semibold text-gray-900 mb-2">
+                                    <label className="block text-sm font-semibold text-gray-900 mb-2">
                                       {q.question}
                                     </label>
-                                    <p className="text-sm text-gray-500">
+                                    <p className="text-xs text-gray-500">
                                       Please select one answer from the options below
                                     </p>
                                   </div>
@@ -2083,7 +2097,7 @@ export default function Home() {
                                           defaultChecked={savedAnswers[module.id]?.[q.id] === option}
                                           className="w-5 h-5 text-pink-600 border-gray-300 focus:ring-pink-500 focus:ring-2 cursor-pointer"
                                         />
-                                        <span className="text-gray-700 font-medium flex-1">{option}</span>
+                                        <span className="text-gray-700 font-medium text-sm flex-1">{option}</span>
                                       </label>
                                     ))}
                                   </div>
@@ -2137,7 +2151,7 @@ export default function Home() {
               </>
             );
           })}
-              </div>
+        </div>
             </div>
           </div>
         </>

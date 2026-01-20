@@ -3,14 +3,13 @@
 export default function RiskFactorsSection() {
   return (
     <section className="relative w-full px-6 md:px-8 py-8 md:py-12 overflow-hidden">
-      {/* Darker Gradient Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 via-purple-600 to-pink-400"></div>
+      {/* Dark Blue Background */}
+      <div className="absolute inset-0 bg-slate-800"></div>
       
-      {/* Decorative Elements with Darker Colors */}
-      <div className="absolute inset-0 opacity-50">
-        <div className="absolute top-0 left-1/4 w-72 h-72 bg-indigo-500 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-purple-500 rounded-full blur-3xl"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-700 rounded-full blur-3xl opacity-70"></div>
+      {/* Subtle Decorative Elements */}
+      <div className="absolute inset-0 opacity-20">
+        <div className="absolute top-0 left-1/4 w-72 h-72 bg-blue-800 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-yellow-500 rounded-full blur-3xl opacity-30"></div>
       </div>
 
       <div className="max-w-4xl mx-auto relative z-10">

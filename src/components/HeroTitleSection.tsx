@@ -6,7 +6,7 @@
     const backgroundImageUrl = typeof heroImage === 'string' ? heroImage : heroImage.src;
     
     return (
-      <div className="w-full min-h-[350px] px-6 md:px-8 pt-12 pb-8 relative overflow-hidden">
+      <div className="w-full min-h-[350px] px-6 md:px-8 pt-12 pb-8 relative overflow-hidden border-b-2 border-yellow-500">
         {/* Background Image - Covering Whole Section */}
         <div 
           className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat z-0"
@@ -18,8 +18,8 @@
           }}
         ></div>
         
-        {/* Light gradient overlay for better text readability */}
-        <div className="absolute inset-0 bg-gradient-to-br from-white/70 via-orange-50/50 to-yellow-50/50 z-[1]"></div>
+        {/* Dark overlay for better text readability */}
+        <div className="absolute inset-0 bg-slate-800/70 z-[1]"></div>
         
         {/* Animated Background Shapes */}
         <div className="absolute inset-0 overflow-hidden z-[1] bgimg">
@@ -45,26 +45,26 @@
           {/* Decorative Top Element */}
           <div className="flex justify-start mb-6">
             <div className="flex items-center gap-2">
-              <div className="h-1 w-12 bg-gray-700 rounded-full"></div>
-              <div className="w-2 h-2 bg-gray-700 rounded-full"></div>
-              <div className="h-1 w-24 bg-gray-700 rounded-full"></div>
-              <div className="w-2 h-2 bg-gray-700 rounded-full"></div>
-              <div className="h-1 w-12 bg-gray-700 rounded-full"></div>
+              <div className="h-1 w-12 bg-yellow-500 rounded-full"></div>
+              <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+              <div className="h-1 w-24 bg-yellow-500 rounded-full"></div>
+              <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+              <div className="h-1 w-12 bg-yellow-500 rounded-full"></div>
             </div>
           </div>
 
-          <h1 className="text-[18px] font-bold text-gray-800 mb-6 leading-tight text-left">
-            <span className="text-orange-700 bg-orange-50 px-4 py-2 rounded-lg shadow-sm border border-orange-100 inline-block mb-2 md:mb-0">Adohealth Initiative</span>
-            <span className="text-gray-800 block text-left md:inline-block md:ml-2"> : A School-Based Cluster Randomised Controlled Trial of an E-Wellness Initiative for Nurturing Healthy Lifestyle Choices among Adolescents in SAS Nagar, Punjab.</span>
+          <h1 className="text-[18px] font-bold mb-6 leading-tight text-left">
+            <span className="text-slate-900 bg-yellow-500 px-4 py-2 rounded-lg shadow-lg border-2 border-yellow-400 inline-block mb-2 md:mb-0">Adohealth Initiative</span>
+            <span className="text-yellow-400 block text-left md:inline-block md:ml-2 font-semibold"> : A School-Based Cluster Randomised Controlled Trial of an E-Wellness Initiative for Nurturing Healthy Lifestyle Choices among Adolescents in SAS Nagar, Punjab.</span>
           </h1>
 
           {/* Modern Decorative Bottom Element */}
           <div className="mt-8 flex justify-start items-center gap-4">
-            <div className="h-1 w-16 bg-gray-700 rounded-full opacity-60"></div>
-            <div className="w-3 h-3 bg-gray-700 rounded-full shadow-lg"></div>
-            <div className="h-1 w-32 bg-gray-700/60 rounded-full"></div>
-            <div className="w-3 h-3 bg-gray-700 rounded-full shadow-lg"></div>
-            <div className="h-1 w-16 bg-gray-700 rounded-full opacity-60"></div>
+            <div className="h-1 w-16 bg-yellow-500 rounded-full"></div>
+            <div className="w-3 h-3 bg-yellow-400 rounded-full shadow-lg"></div>
+            <div className="h-1 w-32 bg-yellow-500 rounded-full"></div>
+            <div className="w-3 h-3 bg-yellow-400 rounded-full shadow-lg"></div>
+            <div className="h-1 w-16 bg-yellow-500 rounded-full"></div>
           </div>
           </div>
         </div>
