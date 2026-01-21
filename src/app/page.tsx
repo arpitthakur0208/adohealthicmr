@@ -113,6 +113,14 @@ export default function Home() {
   // Modules slide panel state
   const [isModulesPanelOpen, setIsModulesPanelOpen] = useState<boolean>(false);
   
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [confirmModalData, setConfirmModalData] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+  
   // Disable body scroll when dropdown is open
   useEffect(() => {
     if (isModulesPanelOpen) {
@@ -128,6 +136,37 @@ export default function Home() {
       document.body.style.overflow = '';
     };
   }, [isModulesPanelOpen]);
+
+  // Disable body scroll when confirmation modal is open
+  useEffect(() => {
+    if (showConfirmModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showConfirmModal]);
+
+  // Handle Escape key to close confirmation modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showConfirmModal) {
+        setShowConfirmModal(false);
+        setConfirmModalData(null);
+      }
+    };
+
+    if (showConfirmModal) {
+      window.addEventListener('keydown', handleEscape);
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [showConfirmModal]);
   
   // Load all state from localStorage after mount to avoid hydration errors
   useEffect(() => {
@@ -741,9 +780,20 @@ export default function Home() {
   const handleRemoveModule = async (moduleId: number) => {
     if (!isAdmin) return;
     
-    // Confirm deletion
-    const confirmDelete = window.confirm(`Are you sure you want to remove this module? This will also delete all associated questions and videos. This action cannot be undone.`);
-    if (!confirmDelete) return;
+    // Show custom confirmation modal
+    setConfirmModalData({
+      title: "Delete Module",
+      message: "Are you sure you want to remove this module? This will also delete all associated questions and videos. This action cannot be undone.",
+      onConfirm: async () => {
+        setShowConfirmModal(false);
+        await performModuleDeletion(moduleId);
+      }
+    });
+    setShowConfirmModal(true);
+  };
+
+  // Perform actual module deletion
+  const performModuleDeletion = async (moduleId: number) => {
 
     // Remove module from modules array
     const updatedModules = modules.filter(m => m.id !== moduleId);
@@ -1363,10 +1413,72 @@ export default function Home() {
             <div 
               className="fixed inset-0 bg-black bg-opacity-30 z-[90] transition-opacity duration-300"
               onClick={() => setIsModulesPanelOpen(false)}
-            ></div>
-          )}
-          
-          {/* Dropdown Panel */}
+            >        </div>
+      )}
+
+      {/* Modern Confirmation Modal */}
+      {showConfirmModal && confirmModalData && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setShowConfirmModal(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100 animate-slideUp border-2 border-yellow-400"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-red-500 to-red-600 px-6 py-4 rounded-t-2xl flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-white">{confirmModalData.title}</h3>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-6 py-6">
+              <p className="text-gray-700 text-base leading-relaxed mb-6">
+                {confirmModalData.message}
+              </p>
+
+              {/* Warning Icon */}
+              <div className="flex items-start gap-3 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg mb-6">
+                <svg className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p className="text-sm text-red-800 font-medium">
+                  This action cannot be undone. Please make sure you want to proceed.
+                </p>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowConfirmModal(false);
+                    setConfirmModalData(null);
+                  }}
+                  className="px-6 py-2.5 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-all duration-200 shadow-sm hover:shadow-md"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    confirmModalData.onConfirm();
+                    setConfirmModalData(null);
+                  }}
+                  className="px-6 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dropdown Panel */}
           <div className={`fixed top-[80px] sm:top-[100px] right-0 left-0 sm:left-auto w-full sm:w-[500px] sm:max-w-[90vw] h-[calc(100vh-80px)] sm:h-[580px] bg-blue-800 shadow-2xl z-[110] transform transition-all duration-300 ease-in-out overflow-hidden rounded-lg sm:rounded-l-lg border-2 border-yellow-500 ${
             isModulesPanelOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-[-10px] scale-95 pointer-events-none'
           }`}>
