@@ -8,9 +8,39 @@
     },
     {
       "id": 2,
-      "title": "Module 2 Title",
-      "description": "Module 2 description. Click to edit this text and customize the content for your module.",
+      "title": "Module 2&3 ( Tobacco & Alcohol)",
+      "description": "mod 2",
       "color": "blue"
+    },
+    {
+      "id": 3,
+      "title": "Module 4  (Unhealthy Diet)",
+      "description": "Module 4 ",
+      "color": "green"
+    },
+    {
+      "id": 4,
+      "title": "Module 5 ( Physical Activity) ",
+      "description": "Module 5",
+      "color": "purple"
+    },
+    {
+      "id": 5,
+      "title": "Module 6 ( Sedentary Screen Time)",
+      "description": "Module 6.",
+      "color": "orange"
+    },
+    {
+      "id": 6,
+      "title": "Module 7 ( Sleep Quality)",
+      "description": "Module 7",
+      "color": "indigo"
+    },
+    {
+      "id": 7,
+      "title": "Module 8 ( Stress )",
+      "description": "Module 8",
+      "color": "teal"
     }
   ],
   "questions": {
@@ -349,9 +379,457 @@
         ],
         "correctAnswer": 1
       }
+    ],
+    "4": [
+      {
+        "id": 1,
+        "question": "Which of the following is a Non-communicable Disease (NCD)?",
+        "options": [
+          "A. Tuberculosis",
+          "B. Heart disease",
+          "C. Cholera",
+          "D. Hepatitis"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 2,
+        "question": "Which of the following is one of the BIG 7 risk factors that causes NCDs?",
+        "options": [
+          "A. Drinking water",
+          "B. Unhealthy diet",
+          "C. Brushing teeth",
+          "D. Washing hands"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 3,
+        "question": "What does the \"S\" in BE FAST for stroke stand for?",
+        "options": [
+          "A. Sleep",
+          "B. Speech difficulty",
+          "C. Stress",
+          "D. Sugar"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 4,
+        "question": "Which food helps prevent NCDs?",
+        "options": [
+          "A. Samosa",
+          "B. Spinach",
+          "C. Cola",
+          "D. Chips"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 5,
+        "question": "Smokeless tobacco increases the risk of which disease?",
+        "options": [
+          "A. Asthma",
+          "B. Oral cancer",
+          "C. Osteoarthritis",
+          "D. Migraine"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 6,
+        "question": "Alcohol use increases the risk of:",
+        "options": [
+          "A. Cataract",
+          "B. Psoriasis",
+          "C. Cancer",
+          "D. Arthritis"
+        ],
+        "correctAnswer": 2
+      },
+      {
+        "id": 7,
+        "question": "Physical inactivity increases the risk of:",
+        "options": [
+          "A. Epilepsy",
+          "B. Obesity",
+          "C. Glaucoma",
+          "D. Parkinson's disease"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 8,
+        "question": "Excessive sedentary screen time increases risk of:",
+        "options": [
+          "A. Kidney stones",
+          "B. Obesity",
+          "C. Thyroid disorders",
+          "D. Varicose veins"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 9,
+        "question": "Poor sleep increases risk of:",
+        "options": [
+          "A. Scoliosis",
+          "B. Diabetes",
+          "C. Psoriasis",
+          "D. Osteoarthritis"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 10,
+        "question": "Which lifestyle choice helps prevent NCDs?",
+        "options": [
+          "A. Skipping meals",
+          "B. Regular exercise",
+          "C. Excessive gaming",
+          "D. Midnight snacking"
+        ],
+        "correctAnswer": 1
+      }
+    ],
+    "5": [
+      {
+        "id": 1,
+        "question": "Which of the following is a Non-communicable Disease (NCD)?",
+        "options": [
+          "A. Tuberculosis",
+          "B. Heart disease",
+          "C. Cholera",
+          "D. Hepatitis"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 2,
+        "question": "Which of the following is one of the BIG 7 risk factors that causes NCDs?",
+        "options": [
+          "A. Drinking water",
+          "B. Unhealthy diet",
+          "C. Brushing teeth",
+          "D. Washing hands"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 3,
+        "question": "What does the \"S\" in BE FAST for stroke stand for?",
+        "options": [
+          "A. Sleep",
+          "B. Speech difficulty",
+          "C. Stress",
+          "D. Sugar"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 4,
+        "question": "Which food helps prevent NCDs?",
+        "options": [
+          "A. Samosa",
+          "B. Spinach",
+          "C. Cola",
+          "D. Chips"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 5,
+        "question": "Smokeless tobacco increases the risk of which disease?",
+        "options": [
+          "A. Asthma",
+          "B. Oral cancer",
+          "C. Osteoarthritis",
+          "D. Migraine"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 6,
+        "question": "Alcohol use increases the risk of:",
+        "options": [
+          "A. Cataract",
+          "B. Psoriasis",
+          "C. Cancer",
+          "D. Arthritis"
+        ],
+        "correctAnswer": 2
+      },
+      {
+        "id": 7,
+        "question": "Physical inactivity increases the risk of:",
+        "options": [
+          "A. Epilepsy",
+          "B. Obesity",
+          "C. Glaucoma",
+          "D. Parkinson's disease"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 8,
+        "question": "Excessive sedentary screen time increases risk of:",
+        "options": [
+          "A. Kidney stones",
+          "B. Obesity",
+          "C. Thyroid disorders",
+          "D. Varicose veins"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 9,
+        "question": "Poor sleep increases risk of:",
+        "options": [
+          "A. Scoliosis",
+          "B. Diabetes",
+          "C. Psoriasis",
+          "D. Osteoarthritis"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 10,
+        "question": "Which lifestyle choice helps prevent NCDs?",
+        "options": [
+          "A. Skipping meals",
+          "B. Regular exercise",
+          "C. Excessive gaming",
+          "D. Midnight snacking"
+        ],
+        "correctAnswer": 1
+      }
+    ],
+    "6": [
+      {
+        "id": 1,
+        "question": "Which of the following is a Non-communicable Disease (NCD)?",
+        "options": [
+          "A. Tuberculosis",
+          "B. Heart disease",
+          "C. Cholera",
+          "D. Hepatitis"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 2,
+        "question": "Which of the following is one of the BIG 7 risk factors that causes NCDs?",
+        "options": [
+          "A. Drinking water",
+          "B. Unhealthy diet",
+          "C. Brushing teeth",
+          "D. Washing hands"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 3,
+        "question": "What does the \"S\" in BE FAST for stroke stand for?",
+        "options": [
+          "A. Sleep",
+          "B. Speech difficulty",
+          "C. Stress",
+          "D. Sugar"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 4,
+        "question": "Which food helps prevent NCDs?",
+        "options": [
+          "A. Samosa",
+          "B. Spinach",
+          "C. Cola",
+          "D. Chips"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 5,
+        "question": "Smokeless tobacco increases the risk of which disease?",
+        "options": [
+          "A. Asthma",
+          "B. Oral cancer",
+          "C. Osteoarthritis",
+          "D. Migraine"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 6,
+        "question": "Alcohol use increases the risk of:",
+        "options": [
+          "A. Cataract",
+          "B. Psoriasis",
+          "C. Cancer",
+          "D. Arthritis"
+        ],
+        "correctAnswer": 2
+      },
+      {
+        "id": 7,
+        "question": "Physical inactivity increases the risk of:",
+        "options": [
+          "A. Epilepsy",
+          "B. Obesity",
+          "C. Glaucoma",
+          "D. Parkinson's disease"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 8,
+        "question": "Excessive sedentary screen time increases risk of:",
+        "options": [
+          "A. Kidney stones",
+          "B. Obesity",
+          "C. Thyroid disorders",
+          "D. Varicose veins"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 9,
+        "question": "Poor sleep increases risk of:",
+        "options": [
+          "A. Scoliosis",
+          "B. Diabetes",
+          "C. Psoriasis",
+          "D. Osteoarthritis"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 10,
+        "question": "Which lifestyle choice helps prevent NCDs?",
+        "options": [
+          "A. Skipping meals",
+          "B. Regular exercise",
+          "C. Excessive gaming",
+          "D. Midnight snacking"
+        ],
+        "correctAnswer": 1
+      }
+    ],
+    "7": [
+      {
+        "id": 1,
+        "question": "Which of the following is a Non-communicable Disease (NCD)?",
+        "options": [
+          "A. Tuberculosis",
+          "B. Heart disease",
+          "C. Cholera",
+          "D. Hepatitis"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 2,
+        "question": "Which of the following is one of the BIG 7 risk factors that causes NCDs?",
+        "options": [
+          "A. Drinking water",
+          "B. Unhealthy diet",
+          "C. Brushing teeth",
+          "D. Washing hands"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 3,
+        "question": "What does the \"S\" in BE FAST for stroke stand for?",
+        "options": [
+          "A. Sleep",
+          "B. Speech difficulty",
+          "C. Stress",
+          "D. Sugar"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 4,
+        "question": "Which food helps prevent NCDs?",
+        "options": [
+          "A. Samosa",
+          "B. Spinach",
+          "C. Cola",
+          "D. Chips"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 5,
+        "question": "Smokeless tobacco increases the risk of which disease?",
+        "options": [
+          "A. Asthma",
+          "B. Oral cancer",
+          "C. Osteoarthritis",
+          "D. Migraine"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 6,
+        "question": "Alcohol use increases the risk of:",
+        "options": [
+          "A. Cataract",
+          "B. Psoriasis",
+          "C. Cancer",
+          "D. Arthritis"
+        ],
+        "correctAnswer": 2
+      },
+      {
+        "id": 7,
+        "question": "Physical inactivity increases the risk of:",
+        "options": [
+          "A. Epilepsy",
+          "B. Obesity",
+          "C. Glaucoma",
+          "D. Parkinson's disease"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 8,
+        "question": "Excessive sedentary screen time increases risk of:",
+        "options": [
+          "A. Kidney stones",
+          "B. Obesity",
+          "C. Thyroid disorders",
+          "D. Varicose veins"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 9,
+        "question": "Poor sleep increases risk of:",
+        "options": [
+          "A. Scoliosis",
+          "B. Diabetes",
+          "C. Psoriasis",
+          "D. Osteoarthritis"
+        ],
+        "correctAnswer": 1
+      },
+      {
+        "id": 10,
+        "question": "Which lifestyle choice helps prevent NCDs?",
+        "options": [
+          "A. Skipping meals",
+          "B. Regular exercise",
+          "C. Excessive gaming",
+          "D. Midnight snacking"
+        ],
+        "correctAnswer": 1
+      }
     ]
   },
   "answers": {},
-  "lastUpdated": "2026-01-20T17:00:19.705Z",
-  "savedAt": "2026-01-20T17:00:19.705Z"
+  "lastUpdated": "2026-01-21T10:20:42.438Z",
+  "savedAt": "2026-01-21T10:20:42.438Z"
 }

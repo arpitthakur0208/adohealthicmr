@@ -1096,7 +1096,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-800">
+    <main className="min-h-screen bg-blue-700">
       <Header
         isUserLoggedIn={isUserLoggedIn}
         isAdmin={isAdmin}
@@ -1117,7 +1117,7 @@ export default function Home() {
       {/* Unified Login Modal */}
       {showUserLogin && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-center justify-center p-4">
-          <div className="bg-slate-700 rounded-lg shadow-2xl max-w-md w-full p-6 relative z-[201] border-2 border-yellow-500">
+          <div className="bg-blue-800 rounded-lg shadow-2xl max-w-md w-full mx-4 sm:mx-auto p-4 sm:p-6 relative z-[201] border-2 border-yellow-500 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               {isAdmin && isEditingLoginHeading ? (
                 <div className="flex items-center gap-2 flex-1">
@@ -1125,7 +1125,7 @@ export default function Home() {
                     type="text"
                     value={loginHeading}
                     onChange={(e) => setLoginHeading(e.target.value)}
-                    className="text-2xl font-bold text-yellow-400 border-2 border-yellow-500 rounded px-2 py-1 flex-1 focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-slate-700 text-white"
+                    className="text-xl sm:text-2xl font-bold text-yellow-400 border-2 border-yellow-500 rounded px-2 py-1 flex-1 focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-slate-700 text-white"
                     autoFocus
                     onBlur={() => {
                       setIsEditingLoginHeading(false);
@@ -1150,7 +1150,7 @@ export default function Home() {
                 </div>
               ) : (
                 <h2 
-                  className="text-2xl font-bold text-yellow-400"
+                  className="text-xl sm:text-2xl font-bold text-yellow-400"
                   onDoubleClick={() => {
                     if (isAdmin) {
                       setIsEditingLoginHeading(true);
@@ -1191,7 +1191,7 @@ export default function Home() {
                     setAdminPassword("");
                     setAdminLoginError("");
                   }}
-                  className={`flex-1 px-4 py-2 rounded-md font-semibold text-sm transition-colors ${
+                  className={`flex-1 px-3 sm:px-4 py-2 rounded-md font-semibold text-xs sm:text-sm transition-colors ${
                     loginMode === 'user'
                       ? 'bg-yellow-500 text-slate-900 shadow-lg'
                       : 'text-gray-300 hover:text-yellow-400 hover:bg-slate-600'
@@ -1222,11 +1222,11 @@ export default function Home() {
             {loginMode === 'user' && (
               <form onSubmit={handleUserLogin}>
                 {/* Available Test Users */}
-                <div className="mb-4 p-3 bg-slate-700 border-2 border-yellow-500 rounded-lg shadow-sm">
+                <div className="mb-4 p-2 sm:p-3 bg-slate-700 border-2 border-yellow-500 rounded-lg shadow-sm">
                   <p className="text-xs font-semibold text-yellow-400 mb-2">Available Test Users:</p>
                   <div className="space-y-1">
                     {USER_CREDENTIALS.map((user, idx) => (
-                      <div key={idx} className="text-xs text-gray-300 font-medium">
+                      <div key={idx} className="text-xs text-gray-300 font-medium break-words">
                         <span className="font-medium">{user.name}</span> - {user.email}
                       </div>
                     ))}
@@ -1235,7 +1235,7 @@ export default function Home() {
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-yellow-400 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
                     Name <span className="text-gray-400 text-xs">(Optional)</span>
                   </label>
                   <input
@@ -1245,13 +1245,13 @@ export default function Home() {
                       setLoginName(e.target.value);
                       setLoginError("");
                     }}
-                    className="w-full px-4 py-2 border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
                     placeholder="Enter your name"
                     autoFocus
                   />
                 </div>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-yellow-400 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
                     Email <span className="text-gray-400 text-xs">(Optional)</span>
                   </label>
                   <input
@@ -1261,16 +1261,16 @@ export default function Home() {
                       setLoginEmail(e.target.value);
                       setLoginError("");
                     }}
-                    className="w-full px-4 py-2 border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
                     placeholder="Enter your email"
                   />
                 </div>
                 {loginError && (
-                  <div className="mb-4 p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
-                    <p className="text-sm text-red-300 font-medium">{loginError}</p>
+                  <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
+                    <p className="text-xs sm:text-sm text-red-300 font-medium">{loginError}</p>
                   </div>
                 )}
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => {
@@ -1279,13 +1279,13 @@ export default function Home() {
                       setLoginEmail("");
                       setLoginError("");
                     }}
-                    className="flex-1 px-4 py-2 bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
+                    className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl"
+                    className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl"
                   >
                     Login
                   </button>
@@ -1297,7 +1297,7 @@ export default function Home() {
             {loginMode === 'admin' && (
               <form onSubmit={handleAdminLogin}>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-yellow-400 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
                     Password
                   </label>
                   <input
@@ -1307,18 +1307,18 @@ export default function Home() {
                       setAdminPassword(e.target.value);
                       setAdminLoginError("");
                     }}
-                    className="w-full px-4 py-2 border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
                     placeholder="Enter admin password"
                     autoFocus
                   />
                   <p className="mt-1 text-xs text-yellow-400 font-medium">Default password: admin123</p>
                 </div>
                 {adminLoginError && (
-                  <div className="mb-4 p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
-                    <p className="text-sm text-red-300 font-medium">{adminLoginError}</p>
+                  <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
+                    <p className="text-xs sm:text-sm text-red-300 font-medium">{adminLoginError}</p>
                   </div>
                 )}
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => {
@@ -1327,13 +1327,13 @@ export default function Home() {
                       setAdminPassword("");
                       setAdminLoginError("");
                     }}
-                    className="flex-1 px-4 py-2 bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
+                    className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl"
+                    className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl"
                   >
                     Admin Login
                   </button>
@@ -1367,12 +1367,12 @@ export default function Home() {
           )}
           
           {/* Dropdown Panel */}
-          <div className={`fixed top-[100px] right-0 w-[500px] max-w-[90vw] h-[580px] bg-slate-700 shadow-2xl z-[110] transform transition-all duration-300 ease-in-out overflow-hidden rounded-lg border-2 border-yellow-500 ${
+          <div className={`fixed top-[80px] sm:top-[100px] right-0 left-0 sm:left-auto w-full sm:w-[500px] sm:max-w-[90vw] h-[calc(100vh-80px)] sm:h-[580px] bg-blue-800 shadow-2xl z-[110] transform transition-all duration-300 ease-in-out overflow-hidden rounded-lg sm:rounded-l-lg border-2 border-yellow-500 ${
             isModulesPanelOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-[-10px] scale-95 pointer-events-none'
           }`}>
             {/* Panel Header */}
-            <div className="sticky top-0 bg-slate-600 border-b-2 border-yellow-500 px-4 py-3 flex items-center justify-between z-10 shadow-sm">
-              <h2 className="text-lg font-bold text-yellow-400">Interactive E-Modules</h2>
+            <div className="sticky top-0 bg-blue-900 border-b-2 border-yellow-500 px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between z-10 shadow-sm">
+              <h2 className="text-base sm:text-lg font-bold text-yellow-400">Interactive E-Modules</h2>
               <button
                 onClick={() => setIsModulesPanelOpen(false)}
                 className="p-1.5 hover:bg-slate-600 rounded-lg transition-colors text-gray-300 hover:text-yellow-400"
@@ -1386,8 +1386,8 @@ export default function Home() {
         </div>
 
             {/* Panel Content */}
-            <div className="px-4 py-4 overflow-y-auto h-[calc(600px-60px)]">
-              <p className="text-gray-200 mb-4 text-sm leading-relaxed bg-slate-700 backdrop-blur-sm p-3 rounded-lg border-2 border-yellow-500 shadow-sm font-medium">
+            <div className="px-3 sm:px-4 py-3 sm:py-4 overflow-y-auto h-[calc(100vh-140px)] sm:h-[calc(600px-60px)]">
+              <p className="text-black mb-4 text-xs sm:text-sm leading-relaxed bg-white/90 backdrop-blur-sm p-2 sm:p-3 rounded-lg border-2 border-yellow-500 shadow-sm font-medium">
               Eight comprehensive modules designed for adolescents aged 12-18 combining evidence-based content with purpose-specific for natural relevance.
             </p>
 
@@ -1396,9 +1396,9 @@ export default function Home() {
             <div className="mb-4 flex justify-center">
               <button
                 onClick={handleAddModule}
-                    className="px-4 py-2 bg-yellow-500 text-slate-900 text-sm font-semibold rounded-lg hover:bg-yellow-400 border-2 border-yellow-400 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
+                    className="px-3 sm:px-4 py-2 bg-yellow-500 text-slate-900 text-xs sm:text-sm font-semibold rounded-lg hover:bg-yellow-400 border-2 border-yellow-400 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-1.5 sm:gap-2"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 Add Module
@@ -1414,8 +1414,8 @@ export default function Home() {
             
             return (
               <>
-                <div key={module.id} className="bg-slate-600 backdrop-blur-sm rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-2 border-slate-500 mb-3 hover:border-yellow-500">
-                <div className="p-3 flex items-start gap-3">
+                <div key={module.id} className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-2 border-blue-700 mb-3 hover:border-yellow-500">
+                <div className="p-2 sm:p-3 flex items-start gap-2 sm:gap-3">
                   {/* Icon */}
                   <div className={`flex-shrink-0 w-10 h-10 ${colorClasses.bg.replace('500', '100')} rounded-lg flex items-center justify-center border ${colorClasses.border.replace('300', '200')}`}>
                     <svg
@@ -1436,19 +1436,20 @@ export default function Home() {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1">
-                      <h3 className="text-sm font-bold text-yellow-400 truncate">
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-800 truncate">
                         {module.title}
                       </h3>
                       {isAdmin && !isEditing && (
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
                           <button
                             onClick={() => handleEditModule(module)}
-                            className="text-yellow-400 hover:text-yellow-300 transition-colors p-1 hover:bg-slate-600 rounded"
+                            className="text-slate-700 hover:text-slate-800 transition-colors p-1 hover:bg-slate-400 rounded touch-manipulation"
                             title="Edit module"
                           >
                             <svg
-                              width="16"
-                              height="16"
+                              width="14"
+                              height="14"
+                              className="sm:w-4 sm:h-4"
                               viewBox="0 0 24 24"
                               fill="none"
                               stroke="currentColor"
@@ -1462,12 +1463,13 @@ export default function Home() {
                           </button>
                           <button
                             onClick={() => handleRemoveModule(module.id)}
-                            className="text-yellow-400 hover:text-red-400 transition-colors p-1 hover:bg-slate-600 rounded"
+                            className="text-slate-700 hover:text-red-500 transition-colors p-1 hover:bg-slate-400 rounded touch-manipulation"
                             title="Remove module"
                           >
                             <svg
-                              width="16"
-                              height="16"
+                              width="14"
+                              height="14"
+                              className="sm:w-4 sm:h-4"
                               viewBox="0 0 24 24"
                               fill="none"
                               stroke="currentColor"
@@ -1489,26 +1491,26 @@ export default function Home() {
                     {isEditing ? (
                       <div className="space-y-2 mb-3">
                         <div>
-                          <label className="block text-xs font-medium text-yellow-400 mb-1">
+                          <label className="block text-xs font-medium text-slate-800 mb-1">
                             Title
                           </label>
                           <input
                             type="text"
                             value={editTitle}
                             onChange={(e) => setEditTitle(e.target.value)}
-                            className="w-full px-2 py-1.5 text-sm border-2 border-yellow-500 rounded focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-800 text-white"
+                            className="w-full px-2 py-1.5 text-sm border-2 border-yellow-500 rounded focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-white text-gray-800"
                             placeholder="Enter module title"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-yellow-400 mb-1">
+                          <label className="block text-xs font-medium text-slate-800 mb-1">
                             Description
                           </label>
                           <textarea
                             value={editDescription}
                             onChange={(e) => setEditDescription(e.target.value)}
                             rows={3}
-                            className="w-full px-2 py-1.5 text-sm border-2 border-yellow-500 rounded focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none resize-none bg-slate-800 text-white"
+                            className="w-full px-2 py-1.5 text-sm border-2 border-yellow-500 rounded focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none resize-none bg-white text-gray-800"
                             placeholder="Enter module description"
                           />
                         </div>
@@ -1521,7 +1523,7 @@ export default function Home() {
                           </button>
                           <button
                             onClick={handleCancelEdit}
-                            className="px-3 py-1.5 text-sm bg-slate-600 text-gray-200 font-semibold rounded hover:bg-slate-500 transition-all shadow-md"
+                            className="px-3 py-1.5 text-sm bg-slate-400 text-gray-800 font-semibold rounded hover:bg-slate-500 transition-all shadow-md"
                           >
                             Cancel
                           </button>
@@ -1529,7 +1531,7 @@ export default function Home() {
                       </div>
                     ) : (
                       <>
-                        <p className="text-gray-300 mb-2 text-xs leading-relaxed line-clamp-2 font-medium">
+                        <p className="text-gray-700 mb-2 text-xs sm:text-sm leading-relaxed line-clamp-2 font-medium">
                           {module.description}
                         </p>
                       </>

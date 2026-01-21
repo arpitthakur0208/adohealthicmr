@@ -3,8 +3,8 @@
 export default function Footer() {
   return (
     <footer className="relative w-full overflow-hidden border-t-2 border-yellow-500">
-      {/* Dark Background */}
-      <div className="absolute inset-0 bg-slate-800"></div>
+      {/* Darker Blue Background */}
+      <div className="absolute inset-0 bg-blue-800"></div>
       
       {/* Decorative Elements */}
       <div className="absolute inset-0 opacity-10">
@@ -12,17 +12,17 @@ export default function Footer() {
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-800 rounded-full blur-3xl"></div>
       </div>
 
-      <div className="relative z-10 text-white py-10 md:py-12">
-        <div className="max-w-6xl mx-auto px-6 md:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+      <div className="relative z-10 text-white py-8 sm:py-10 md:py-12">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 md:gap-12">
           {/* Contact Information */}
           <div>
-            <h3 className="text-2xl font-bold mb-6 text-yellow-400">Contact Information</h3>
-            <div className="space-y-3">
-              <p className="font-semibold text-lg">Dr. Amrit Kaur Virk, MD</p>
-              <p className="text-gray-300">Professor & Head, Department of Community Medicine</p>
-              <p className="text-gray-300">Dr BR Ambedkar State Institute of Medical Sciences (AIMS)</p>
-              <p className="text-gray-300">SAS Nagar, Mohali, Punjab</p>
+            <h3 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-yellow-400">Contact Information</h3>
+            <div className="space-y-2 sm:space-y-3">
+              <p className="font-semibold text-base sm:text-lg">Dr. Amrit Kaur Virk, MD</p>
+              <p className="text-gray-300 text-sm sm:text-base">Professor & Head, Department of Community Medicine</p>
+              <p className="text-gray-300 text-sm sm:text-base">Dr BR Ambedkar State Institute of Medical Sciences (AIMS)</p>
+              <p className="text-gray-300 text-sm sm:text-base">SAS Nagar, Mohali, Punjab</p>
               <div className="pt-2 space-y-2">
                 <p className="text-gray-300 flex items-center gap-2">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -43,9 +43,9 @@ export default function Footer() {
 
           {/* Funding Information */}
           <div>
-            <h3 className="text-2xl font-bold mb-6 text-yellow-400">About</h3>
-            <div className="space-y-4">
-              <p className="text-gray-300 leading-relaxed">
+            <h3 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-yellow-400">About</h3>
+            <div className="space-y-3 sm:space-y-4">
+              <p className="text-gray-300 text-sm sm:text-base leading-relaxed">
                 Funded by the Indian Council of Medical Research (ICMR) under the intermediate Grant-2024
               </p>
               <div className="pt-4">
@@ -63,9 +63,9 @@ export default function Footer() {
                       fill="currentColor"
                     />
                   </svg>
-                  <h4 className="text-xl font-semibold">AdoHealth Initiative</h4>
+                  <h4 className="text-lg sm:text-xl font-semibold">AdoHealth Initiative</h4>
                 </div>
-                <p className="text-gray-400 text-sm">
+                <p className="text-gray-400 text-xs sm:text-sm">
                   Building healthy lifestyles today, preventing NCDs tomorrow.
                 </p>
               </div>
