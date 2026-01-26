@@ -7,9 +7,16 @@ const nextConfig = {
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
       };
     }
     return config;
+  },
+  // Ensure server-only modules are properly handled
+  experimental: {
+    serverComponentsExternalPackages: ['jsonwebtoken', 'bcryptjs', 'mongoose'],
   },
 }
 

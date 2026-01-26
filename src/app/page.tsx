@@ -1,8 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { initDB, saveVideo, getAllVideos, removeVideo, removeModuleVideos } from "./utils/videoStorage";
-import { saveModules, saveModuleQuestions, saveModuleAnswers, loadAppDataFromServer, type StoredModule, type StoredQuestion } from "./utils/dataStorage";
+import {
+  getModules, createModule, updateModule, deleteModule,
+  getQuestions, createQuestion, updateQuestion, deleteQuestion,
+  getAnswers, submitAnswer,
+  getVideos, createVideo, deleteVideo,
+  type ModuleData, type QuestionData, type AnswerData, type VideoData
+} from "./utils/api";
 import Header from "../components/Header";
 import HeroTitleSection from "../components/HeroTitleSection";
 import MainHero from "../components/MainHero";
@@ -90,25 +95,23 @@ interface Module {
 }
 
 export default function Home() {
-  // Admin authentication state (separate from user login)
+  // Admin authentication state
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [adminUsername, setAdminUsername] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminLoginError, setAdminLoginError] = useState("");
-  const ADMIN_PASSWORD = "admin123"; // Change this to your desired password
+  const [isAdminLoading, setIsAdminLoading] = useState(false);
 
-  // User credentials - default test users
-  const USER_CREDENTIALS = [
-    { name: "John Doe", email: "john@example.com" },
-    { name: "Jane Smith", email: "jane@example.com" },
-    { name: "Test User", email: "test@example.com" },
-    { name: "Demo User", email: "demo@example.com" },
-  ];
-
-  // User login state (optional - users can browse without logging in)
+  // User login state
   const [isUserLoggedIn, setIsUserLoggedIn] = useState<boolean>(false);
   const [userName, setUserName] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
+  const [userRole, setUserRole] = useState<string>('');
+
+  // Image state
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [loginHeading, setLoginHeading] = useState<string>("Login");
   
   // Modules slide panel state
   const [isModulesPanelOpen, setIsModulesPanelOpen] = useState<boolean>(false);
@@ -120,6 +123,12 @@ export default function Home() {
     message: string;
     onConfirm: () => void;
   } | null>(null);
+
+  // Login history modal state
+  const [showLoginHistory, setShowLoginHistory] = useState<boolean>(false);
+  const [loginHistory, setLoginHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+  const [historyError, setHistoryError] = useState<string>("");
   
   // Disable body scroll when dropdown is open
   useEffect(() => {
@@ -150,6 +159,19 @@ export default function Home() {
     };
   }, [showConfirmModal]);
 
+  // Disable body scroll when login history modal is open
+  useEffect(() => {
+    if (showLoginHistory) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showLoginHistory]);
+
   // Handle Escape key to close confirmation modal
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -168,248 +190,379 @@ export default function Home() {
     };
   }, [showConfirmModal]);
   
-  // Load all state from localStorage after mount to avoid hydration errors
+  // Check authentication status on mount
   useEffect(() => {
-    // Load authentication state
-    setIsAdmin(localStorage.getItem('isAdmin') === 'true');
-    setIsUserLoggedIn(localStorage.getItem('isUserLoggedIn') === 'true');
-    setUserName(localStorage.getItem('userName') || '');
-    setUserEmail(localStorage.getItem('userEmail') || '');
-    
-    // Load image
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.user) {
+            setIsUserLoggedIn(true);
+            setUserName(data.user.username);
+            setUserEmail(data.user.email || '');
+            setUserRole(data.user.role);
+            setIsAdmin(data.user.role === 'admin');
+          }
+        } else if (response.status === 401) {
+          // User is not authenticated - this is normal, don't log as error
+          // Silently handle unauthenticated state
+        }
+      } catch (error) {
+        // Only log unexpected errors, not 401s
+        if (error instanceof Error && !error.message.includes('401')) {
+          console.error('Error checking auth:', error);
+        }
+      }
+    };
+    checkAuth();
+  }, []);
+
+  // Load all data from APIs after mount
+  useEffect(() => {
+    // Load image from localStorage (keep for now, can be migrated to API later)
     const storedImage = localStorage.getItem('adminUploadedImage');
     if (storedImage) {
       setSelectedImage(storedImage);
     }
     
-    // Load login heading
+    // Load login heading from localStorage (keep for now)
     const storedLoginHeading = localStorage.getItem('adminLoginHeading');
     if (storedLoginHeading) {
       setLoginHeading(storedLoginHeading);
     }
     
-    // Load videos from IndexedDB (migrate from localStorage if needed)
-    const loadVideos = async () => {
+    // Load all data from APIs
+    const loadAllData = async () => {
       try {
-        // Initialize IndexedDB first
-        await initDB();
-        
-        // Try to load from IndexedDB first
-        const indexedDBVideos = await getAllVideos();
-        if (Object.keys(indexedDBVideos).length > 0) {
-          // Ensure all video arrays are properly initialized
-          const normalizedVideos: typeof indexedDBVideos = {};
-          Object.keys(indexedDBVideos).forEach(moduleIdStr => {
-            const moduleId = Number(moduleIdStr);
-            normalizedVideos[moduleId] = {
-              english: indexedDBVideos[moduleId]?.english || [],
-              punjabi: indexedDBVideos[moduleId]?.punjabi || [],
-              hindi: indexedDBVideos[moduleId]?.hindi || [],
-              activity: indexedDBVideos[moduleId]?.activity || []
-            };
-          });
-          setVideos(normalizedVideos);
+        // Load modules from API
+        const modulesResponse = await getModules();
+        if (modulesResponse.success && modulesResponse.data?.modules) {
+          const apiModules: Module[] = modulesResponse.data.modules.map(m => ({
+            id: m.id,
+            title: m.title,
+            description: m.description,
+            color: m.color,
+          }));
+          if (apiModules.length > 0) {
+            setModules(apiModules);
+          } else {
+            // Fallback to defaults if no modules in database
+            setModules(defaultModules);
+          }
         } else {
-          // Migrate from localStorage if IndexedDB is empty
-          const storedVideos = localStorage.getItem('adminUploadedVideos');
-          if (storedVideos) {
-            try {
-              const parsedVideos = JSON.parse(storedVideos);
-              // Ensure all video arrays are properly initialized
-              const normalizedVideos: typeof parsedVideos = {};
-              Object.keys(parsedVideos).forEach(moduleIdStr => {
-                const moduleId = Number(moduleIdStr);
-                normalizedVideos[moduleId] = {
-                  english: parsedVideos[moduleId]?.english || [],
-                  punjabi: parsedVideos[moduleId]?.punjabi || [],
-                  hindi: parsedVideos[moduleId]?.hindi || [],
-                  activity: parsedVideos[moduleId]?.activity || []
-                };
-              });
-              setVideos(normalizedVideos);
-              
-              // Migrate to IndexedDB
-              for (const moduleIdStr of Object.keys(normalizedVideos)) {
-                const moduleId = Number(moduleIdStr);
-                const moduleVideos = normalizedVideos[moduleId];
-                for (const videoType of ['english', 'punjabi', 'hindi', 'activity'] as const) {
-                  for (const video of moduleVideos[videoType]) {
-                    // Only migrate if video has preview data
-                    if (video.preview && video.preview.trim() !== '') {
-                      try {
-                        await saveVideo(moduleId, videoType, video);
-                      } catch (err) {
-                        console.error(`Error migrating video ${moduleId}/${videoType}/${video.id}:`, err);
-                      }
-                    }
-                  }
-                }
-              }
-            } catch (error) {
-              console.error('Error loading videos from localStorage:', error);
+          // Fallback to defaults if API fails
+          setModules(defaultModules);
+        }
+
+        // Load questions from API
+        const questionsResponse = await getQuestions();
+        if (questionsResponse.success && questionsResponse.data?.questions) {
+          const apiQuestions: { [moduleId: number]: Question[] } = {};
+          questionsResponse.data.questions.forEach((q: QuestionData) => {
+            if (!apiQuestions[q.moduleId]) {
+              apiQuestions[q.moduleId] = [];
             }
+            apiQuestions[q.moduleId].push({
+              id: q.id,
+              question: q.question,
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+            });
+          });
+          setModuleQuestions(apiQuestions);
+        }
+
+        // Load answers from API (only if user is logged in)
+        if (isUserLoggedIn) {
+          const answersResponse = await getAnswers();
+          if (answersResponse.success && answersResponse.data?.answers) {
+            const apiAnswers: { [moduleId: number]: { [questionId: number]: string } } = {};
+            answersResponse.data.answers.forEach((a: any) => {
+              if (!apiAnswers[a.moduleId]) {
+                apiAnswers[a.moduleId] = {};
+              }
+              apiAnswers[a.moduleId][a.questionId] = a.answer;
+            });
+            setSavedAnswers(apiAnswers);
+          }
+        }
+
+        // Load videos from API (only if user is logged in)
+        if (isUserLoggedIn || isAdmin) {
+          const videosResponse = await getVideos();
+          if (videosResponse.success && videosResponse.data?.videos) {
+            const apiVideos: {
+              [moduleId: number]: {
+                english: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+                punjabi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+                hindi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+                activity: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+              };
+            } = {};
+            
+            videosResponse.data.videos.forEach((v: VideoData) => {
+              if (!apiVideos[v.moduleId]) {
+                apiVideos[v.moduleId] = {
+                  english: [],
+                  punjabi: [],
+                  hindi: [],
+                  activity: [],
+                };
+              }
+              apiVideos[v.moduleId][v.videoType].push({
+                id: v.videoId,
+                preview: v.preview,
+                fileName: v.fileName,
+                fileSize: v.fileSize,
+              });
+            });
+            setVideos(apiVideos);
           }
         }
       } catch (error) {
-        console.error('Error loading videos from IndexedDB:', error);
-      }
-    };
-    
-    loadVideos();
-    
-    // Function to reload videos from IndexedDB
-    const reloadVideos = async () => {
-      try {
-        await initDB();
-        const indexedDBVideos = await getAllVideos();
-        if (Object.keys(indexedDBVideos).length > 0) {
-          const normalizedVideos: typeof indexedDBVideos = {};
-          Object.keys(indexedDBVideos).forEach(moduleIdStr => {
-            const moduleId = Number(moduleIdStr);
-            normalizedVideos[moduleId] = {
-              english: indexedDBVideos[moduleId]?.english || [],
-              punjabi: indexedDBVideos[moduleId]?.punjabi || [],
-              hindi: indexedDBVideos[moduleId]?.hindi || [],
-              activity: indexedDBVideos[moduleId]?.activity || []
-            };
-          });
-          setVideos(normalizedVideos);
-        }
-      } catch (error) {
-        console.error('Error reloading videos:', error);
-      }
-    };
-    
-    // Store reload function for use in other functions
-    (window as any).reloadVideos = reloadVideos;
-    
-    // Load modules
-    const storedModules = localStorage.getItem('adminEditedModules');
-    let loadedModules = defaultModules;
-    if (storedModules) {
-      try {
-        loadedModules = JSON.parse(storedModules);
-        setModules(loadedModules);
-      } catch (error) {
-        console.error('Error loading modules from localStorage:', error);
-        // Fallback to default modules if parsing fails
+        console.error('Error loading data from APIs:', error);
+        // Fallback to defaults on error
         setModules(defaultModules);
       }
-    } else {
-      // Ensure modules are set even if no stored data exists
-      setModules(defaultModules);
-    }
-
-    // Load saved answers
-    const storedAnswers = localStorage.getItem('savedAnswers');
-    if (storedAnswers) {
-      try {
-        setSavedAnswers(JSON.parse(storedAnswers));
-      } catch (error) {
-        console.error('Error loading saved answers:', error);
-      }
-    }
-
-    // Load questions
-    const storedQuestions = localStorage.getItem('adminEditedQuestions');
-    if (storedQuestions) {
-      try {
-        const loadedQuestions = JSON.parse(storedQuestions);
-        // Merge with defaults for any modules that don't have questions
-        const mergedQuestions: { [moduleId: number]: Question[] } = {};
-        loadedModules.forEach((module: Module) => {
-          mergedQuestions[module.id] = loadedQuestions[module.id] || defaultQuestions.map(q => ({ ...q }));
-        });
-        setModuleQuestions(mergedQuestions);
-      } catch (error) {
-        console.error('Error loading questions from localStorage:', error);
-      }
-    }
-  }, []);
+    };
+    
+    loadAllData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isUserLoggedIn, isAdmin]);
 
   const [showUserLogin, setShowUserLogin] = useState(false);
   const [loginMode, setLoginMode] = useState<'user' | 'admin'>('user');
-  const [loginName, setLoginName] = useState("");
+  const [loginUsername, setLoginUsername] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginOTP, setLoginOTP] = useState("");
+  const [loginStep, setLoginStep] = useState<'email' | 'otp'>('email');
   const [loginError, setLoginError] = useState("");
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  const [isRequestingOTP, setIsRequestingOTP] = useState(false);
 
-  const handleAdminLogin = (e: React.FormEvent) => {
+  const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminPassword === ADMIN_PASSWORD) {
-      setIsAdmin(true);
-      localStorage.setItem('isAdmin', 'true');
-      setShowAdminLogin(false);
+    setIsAdminLoading(true);
+    setAdminLoginError("");
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: adminUsername,
+          password: adminPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        if (data.user.role === 'admin') {
+          setIsAdmin(true);
+          setIsUserLoggedIn(true);
+          setUserName(data.user.username);
+          setUserEmail(data.user.email || '');
+          setUserRole(data.user.role);
+          setShowAdminLogin(false);
+          setAdminUsername("");
+          setAdminPassword("");
+          setAdminLoginError("");
+        } else {
+          setAdminLoginError("This account is not an admin account.");
+        }
+      } else {
+        setAdminLoginError(data.message || data.error || "Invalid credentials. Please try again.");
+        setAdminPassword("");
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setAdminLoginError("An error occurred during login. Please try again.");
       setAdminPassword("");
-      setAdminLoginError("");
-    } else {
-      setAdminLoginError("Incorrect password. Please try again.");
-      setAdminPassword("");
+    } finally {
+      setIsAdminLoading(false);
     }
   };
 
-  const handleAdminLogout = () => {
+  const handleAdminLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
     setIsAdmin(false);
-    localStorage.removeItem('isAdmin');
+    setIsUserLoggedIn(false);
+    setUserName("");
+    setUserEmail("");
+    setUserRole("");
     setEditingModule(null);
     setEditTitle("");
     setEditDescription("");
   };
 
-  const handleUserLogin = (e: React.FormEvent) => {
+  const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsRequestingOTP(true);
     setLoginError("");
 
-    const trimmedName = loginName.trim();
     const trimmedEmail = loginEmail.trim();
+    const trimmedUsername = loginUsername.trim();
 
-    // If both name and email are provided, validate against credentials
-    if (trimmedName && trimmedEmail) {
-      const exactMatch = USER_CREDENTIALS.find(
-        user => 
-          trimmedName.toLowerCase() === user.name.toLowerCase() &&
-          trimmedEmail.toLowerCase() === user.email.toLowerCase()
-      );
-
-      if (exactMatch) {
-        // Valid credentials - login with matched user info
-        setIsUserLoggedIn(true);
-        setUserName(exactMatch.name);
-        setUserEmail(exactMatch.email);
-        localStorage.setItem('isUserLoggedIn', 'true');
-        localStorage.setItem('userName', exactMatch.name);
-        localStorage.setItem('userEmail', exactMatch.email);
-      } else {
-        // Invalid credentials
-        setLoginError("Invalid credentials. Please use one of the test accounts shown above or login with just a name.");
-        return;
-      }
-    } else {
-      // Allow login with any name/email or empty (fallback for flexibility)
-      setIsUserLoggedIn(true);
-      setUserName(trimmedName || 'User');
-      setUserEmail(trimmedEmail);
-      localStorage.setItem('isUserLoggedIn', 'true');
-      localStorage.setItem('userName', trimmedName || 'User');
-      localStorage.setItem('userEmail', trimmedEmail);
+    if (!trimmedEmail && !trimmedUsername) {
+      setLoginError("Please enter your username and email address.");
+      setIsRequestingOTP(false);
+      return;
     }
 
-    setShowUserLogin(false);
-    setLoginName("");
-    setLoginEmail("");
-    setLoginError("");
+    if (!trimmedEmail) {
+      setLoginError("Please enter your email address.");
+      setIsRequestingOTP(false);
+      return;
+    }
+
+    if (!trimmedUsername) {
+      setLoginError("Please enter your username.");
+      setIsRequestingOTP(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/request-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: trimmedEmail || undefined,
+          username: trimmedUsername || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setLoginStep('otp');
+        setLoginError("");
+        
+        // In development, if email is not configured, show OTP in console and alert
+        if (data.debug && data.debug.otp) {
+          console.log('=== OTP CODE (Development Mode) ===');
+          console.log('Email:', trimmedEmail);
+          console.log('OTP:', data.debug.otp);
+          console.log('===================================');
+          alert(`OTP Code: ${data.debug.otp}\n\n⚠️ Email service is not configured!\n\n📧 To enable email sending:\n1. Go to https://web3forms.com\n2. Get your free access key\n3. Add WEB3FORMS_ACCESS_KEY=your_key to .env.local\n4. Restart the server (Ctrl+C then npm run dev)\n\n💡 For now, use the OTP code shown above to login.`);
+        } else {
+          // Show helpful message with reminder to check server console
+          console.log('📧 OTP request processed. Please check:');
+          console.log('1. Your email inbox (and spam folder)');
+          console.log('2. Your SERVER console (terminal where npm run dev is running)');
+          console.log('   - Look for "OTP CODE" or "email sent successfully" messages');
+          console.log('   - If email service is not configured, the OTP will be shown there');
+        }
+      } else {
+        setLoginError(data.message || data.error || "Failed to send OTP. Please try again.");
+      }
+    } catch (error) {
+      console.error('Request OTP error:', error);
+      setLoginError("An error occurred while requesting OTP. Please try again.");
+    } finally {
+      setIsRequestingOTP(false);
+    }
   };
 
-  const handleUserLogout = () => {
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoginLoading(true);
+    setLoginError("");
+
+    const trimmedOTP = loginOTP.trim();
+    const trimmedEmail = loginEmail.trim();
+    const trimmedUsername = loginUsername.trim();
+
+    if (!trimmedOTP) {
+      setLoginError("Please enter the OTP sent to your email.");
+      setIsLoginLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: trimmedEmail || undefined,
+          username: trimmedUsername || undefined,
+          otp: trimmedOTP,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setIsUserLoggedIn(true);
+        setUserName(data.user.username);
+        setUserEmail(data.user.email || '');
+        setUserRole(data.user.role);
+        setIsAdmin(data.user.role === 'admin');
+        setShowUserLogin(false);
+        setLoginUsername("");
+        setLoginEmail("");
+        setLoginOTP("");
+        setLoginStep('email');
+        setLoginError("");
+      } else {
+        setLoginError(data.message || data.error || "Invalid OTP. Please try again.");
+        setLoginOTP("");
+      }
+    } catch (error) {
+      console.error('Verify OTP error:', error);
+      setLoginError("An error occurred during OTP verification. Please try again.");
+      setLoginOTP("");
+    } finally {
+      setIsLoginLoading(false);
+    }
+  };
+
+  const handleUserLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
     setIsUserLoggedIn(false);
+    setIsAdmin(false);
     setUserName("");
     setUserEmail("");
-    localStorage.removeItem('isUserLoggedIn');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userEmail');
+    setUserRole("");
   };
 
-  // Image state - initialize without localStorage to avoid hydration errors
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const fetchLoginHistory = async () => {
+    setIsLoadingHistory(true);
+    setHistoryError("");
+    try {
+      const response = await fetch('/api/auth/login-history?limit=100');
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setLoginHistory(data.data.logins || []);
+      } else {
+        setHistoryError(data.message || data.error || 'Failed to load login history');
+      }
+    } catch (error) {
+      console.error('Error fetching login history:', error);
+      setHistoryError('An error occurred while loading login history');
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Accordion state
   const [openAccordion, setOpenAccordion] = useState<number | null>(null);
   
   // State for module details - track which modules have details open
@@ -417,67 +570,36 @@ export default function Home() {
   const [moduleView, setModuleView] = useState<{ [key: number]: "videos" | "questions" | null }>({});
   const [selectedVideoType, setSelectedVideoType] = useState<{ [key: number]: "english" | "punjabi" | "hindi" | "activity" | null }>({});
 
-  // Load data from server file on page load
-  useEffect(() => {
-    const loadDataFromServer = async () => {
-      try {
-        const serverData = await loadAppDataFromServer();
-        
-        // Update modules if server has data
-        if (serverData.modules && serverData.modules.length > 0) {
-          const serverModules: Module[] = serverData.modules.map(m => ({
-            id: m.id,
-            title: m.title,
-            description: m.description,
-            color: m.color,
-          }));
-          setModules(serverModules);
-        }
-        
-        // Update questions if server has data
-        if (serverData.questions && Object.keys(serverData.questions).length > 0) {
-          const serverQuestions: { [key: number]: Question[] } = {};
-          Object.entries(serverData.questions).forEach(([moduleId, questions]) => {
-            serverQuestions[Number(moduleId)] = questions.map(q => ({
-              id: q.id,
-              question: q.question,
-              options: q.options,
-              correctAnswer: q.correctAnswer,
-            }));
-          });
-          setModuleQuestions(serverQuestions);
-        }
-        
-        // Update answers if server has data
-        if (serverData.answers && Object.keys(serverData.answers).length > 0) {
-          setSavedAnswers(serverData.answers);
-        }
-        
-        console.log('Data loaded from server file');
-      } catch (error) {
-        console.error('Error loading data from server:', error);
-        // Fallback to localStorage if server load fails
-      }
-    };
-    
-    loadDataFromServer();
-  }, []);
-
   // Reload videos when a video type is selected to ensure fresh data
   useEffect(() => {
     const reloadVideosForModule = async (moduleId: number) => {
       try {
-        await initDB();
-        const indexedDBVideos = await getAllVideos();
-        if (indexedDBVideos[moduleId]) {
+        const videosResponse = await getVideos(moduleId);
+        if (videosResponse.success && videosResponse.data?.videos) {
+          const moduleVideos: {
+            english: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+            punjabi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+            hindi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+            activity: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+          } = {
+            english: [],
+            punjabi: [],
+            hindi: [],
+            activity: [],
+          };
+          
+          videosResponse.data.videos.forEach((v: VideoData) => {
+            moduleVideos[v.videoType].push({
+              id: v.videoId,
+              preview: v.preview,
+              fileName: v.fileName,
+              fileSize: v.fileSize,
+            });
+          });
+          
           setVideos(prev => ({
             ...prev,
-            [moduleId]: {
-              english: indexedDBVideos[moduleId]?.english || [],
-              punjabi: indexedDBVideos[moduleId]?.punjabi || [],
-              hindi: indexedDBVideos[moduleId]?.hindi || [],
-              activity: indexedDBVideos[moduleId]?.activity || []
-            }
+            [moduleId]: moduleVideos
           }));
         }
       } catch (error) {
@@ -554,7 +676,6 @@ export default function Home() {
   const [editDescription, setEditDescription] = useState("");
 
   // Login heading editable state
-  const [loginHeading, setLoginHeading] = useState<string>("Login");
   const [isEditingLoginHeading, setIsEditingLoginHeading] = useState<boolean>(false);
 
   const handleEditModule = (module: Module) => {
@@ -566,30 +687,28 @@ export default function Home() {
 
   const handleSaveModule = async (moduleId: number) => {
     if (!isAdmin) return; // Only allow saving if admin is logged in
-    const updatedModules = modules.map(m => 
-      m.id === moduleId 
-        ? { ...m, title: editTitle, description: editDescription }
-        : m
-    );
-    setModules(updatedModules);
-    
-    // Save to both localStorage and server file
-    const modulesToSave: StoredModule[] = updatedModules.map(m => ({
-      id: m.id,
-      title: m.title,
-      description: m.description,
-      color: m.color,
-    }));
     
     try {
-      await saveModules(modulesToSave);
-      console.log('Module saved successfully to server file');
+      const response = await updateModule(moduleId, {
+        title: editTitle,
+        description: editDescription,
+      });
+      
+      if (response.success && response.data?.module) {
+        const updatedModule = response.data.module;
+        const updatedModules = modules.map(m => 
+          m.id === moduleId 
+            ? { ...m, title: updatedModule.title, description: updatedModule.description }
+            : m
+        );
+        setModules(updatedModules);
+        alert('Module updated successfully!');
+      } else {
+        alert(response.error || 'Failed to update module');
+      }
     } catch (error) {
       console.error('Error saving module:', error);
-      // Still save to localStorage as fallback
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
-    }
+      alert('An error occurred while saving the module. Please try again.');
     }
     
     setEditingModule(null);
@@ -637,36 +756,40 @@ export default function Home() {
     }
     
     const { moduleId, questionId } = editingQuestion;
-    const updatedQuestions = (moduleQuestions[moduleId] || []).map(q =>
-      q.id === questionId
-        ? { ...q, question: editQuestionText.trim(), options: editQuestionOptions.map(opt => opt.trim()), correctAnswer: editCorrectAnswer }
-        : q
-    );
-
-    const updatedModuleQuestions = {
-      ...moduleQuestions,
-      [moduleId]: updatedQuestions
-    };
-    
-    setModuleQuestions(updatedModuleQuestions);
-    
-    // Save to both localStorage and server file
-    const questionsToSave: StoredQuestion[] = updatedQuestions.map(q => ({
-      id: q.id,
-      question: q.question,
-      options: q.options,
-      correctAnswer: q.correctAnswer,
-    }));
     
     try {
-      await saveModuleQuestions(moduleId, questionsToSave);
-      console.log('Question saved successfully to server file');
+      const response = await updateQuestion(questionId, moduleId, {
+        question: editQuestionText.trim(),
+        options: editQuestionOptions.map(opt => opt.trim()),
+        correctAnswer: editCorrectAnswer,
+      });
+      
+      if (response.success && response.data?.question) {
+        const updatedQuestion = response.data.question;
+        const updatedQuestions = (moduleQuestions[moduleId] || []).map(q =>
+          q.id === questionId
+            ? {
+                id: updatedQuestion.id,
+                question: updatedQuestion.question,
+                options: updatedQuestion.options,
+                correctAnswer: updatedQuestion.correctAnswer,
+              }
+            : q
+        );
+
+        const updatedModuleQuestions = {
+          ...moduleQuestions,
+          [moduleId]: updatedQuestions
+        };
+        
+        setModuleQuestions(updatedModuleQuestions);
+        alert('Question updated successfully!');
+      } else {
+        alert(response.error || 'Failed to update question');
+      }
     } catch (error) {
       console.error('Error saving question:', error);
-      // Still save to localStorage as fallback
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedModuleQuestions));
-      }
+      alert('An error occurred while saving the question. Please try again.');
     }
     
     setEditingQuestion(null);
@@ -718,61 +841,76 @@ export default function Home() {
     const colors = ["pink", "blue", "green", "purple", "orange", "indigo", "teal", "red"];
     const newColor = colors[(newModuleId - 1) % colors.length];
     
-    const newModule: Module = {
+    const newModuleData: ModuleData = {
       id: newModuleId,
       title: `Module ${newModuleId} Title`,
       description: `Module ${newModuleId} description. Click to edit this text and customize the content for your module.`,
       color: newColor
     };
 
-    const updatedModules = [...modules, newModule];
-    setModules(updatedModules);
-
-    // Initialize questions for new module
-    const updatedQuestions = {
-      ...moduleQuestions,
-      [newModuleId]: defaultQuestions.map(q => ({ ...q }))
-    };
-    setModuleQuestions(updatedQuestions);
-
-    // Initialize videos for new module
-    const updatedVideos = {
-      ...videos,
-      [newModuleId]: {
-        english: [],
-        punjabi: [],
-        hindi: [],
-        activity: []
-      }
-    };
-    setVideos(updatedVideos);
-
-    // Save to both localStorage and server file
-    const modulesToSave: StoredModule[] = updatedModules.map(m => ({
-      id: m.id,
-      title: m.title,
-      description: m.description,
-      color: m.color,
-    }));
-    
-    const questionsToSave: StoredQuestion[] = updatedQuestions[newModuleId].map(q => ({
-      id: q.id,
-      question: q.question,
-      options: q.options,
-      correctAnswer: q.correctAnswer,
-    }));
-    
     try {
-      await saveModules(modulesToSave);
-      await saveModuleQuestions(newModuleId, questionsToSave);
-      console.log('New module saved successfully to server file');
-    } catch (error) {
-      console.error('Error saving new module:', error);
-      // Still save to localStorage as fallback
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
-      localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedQuestions));
+      // Create module via API
+      const moduleResponse = await createModule(newModuleData);
+      
+      if (moduleResponse.success && moduleResponse.data?.module) {
+        const createdModule = moduleResponse.data.module;
+        const newModule: Module = {
+          id: createdModule.id,
+          title: createdModule.title,
+          description: createdModule.description,
+          color: createdModule.color,
+        };
+
+        const updatedModules = [...modules, newModule];
+        setModules(updatedModules);
+
+        // Create default questions for new module via API
+        const questionsToCreate = defaultQuestions.map(q => ({
+          id: q.id,
+          moduleId: newModuleId,
+          question: q.question,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+        }));
+
+        const questionPromises = questionsToCreate.map(q => createQuestion(q));
+        const questionResults = await Promise.all(questionPromises);
+        
+        // Initialize questions in state
+        const createdQuestions: Question[] = questionResults
+          .filter(r => r.success && r.data?.question)
+          .map(r => ({
+            id: r.data!.question.id,
+            question: r.data!.question.question,
+            options: r.data!.question.options,
+            correctAnswer: r.data!.question.correctAnswer,
+          }));
+
+        const updatedQuestions = {
+          ...moduleQuestions,
+          [newModuleId]: createdQuestions.length > 0 ? createdQuestions : defaultQuestions.map(q => ({ ...q }))
+        };
+        setModuleQuestions(updatedQuestions);
+
+        // Initialize videos for new module
+        const updatedVideos = {
+          ...videos,
+          [newModuleId]: {
+            english: [],
+            punjabi: [],
+            hindi: [],
+            activity: []
+          }
+        };
+        setVideos(updatedVideos);
+
+        alert('Module created successfully!');
+      } else {
+        alert(moduleResponse.error || 'Failed to create module');
       }
+    } catch (error) {
+      console.error('Error creating new module:', error);
+      alert('An error occurred while creating the module. Please try again.');
     }
   };
 
@@ -794,52 +932,50 @@ export default function Home() {
 
   // Perform actual module deletion
   const performModuleDeletion = async (moduleId: number) => {
+    try {
+      // Delete module via API (this will cascade delete questions and videos if configured)
+      const response = await deleteModule(moduleId);
+      
+      if (response.success) {
+        // Remove module from modules array
+        const updatedModules = modules.filter(m => m.id !== moduleId);
+        setModules(updatedModules);
 
-    // Remove module from modules array
-    const updatedModules = modules.filter(m => m.id !== moduleId);
-    setModules(updatedModules);
+        // Remove questions for this module
+        const updatedQuestions = { ...moduleQuestions };
+        delete updatedQuestions[moduleId];
+        setModuleQuestions(updatedQuestions);
 
-    // Remove questions for this module
-    const updatedQuestions = { ...moduleQuestions };
-    delete updatedQuestions[moduleId];
-    setModuleQuestions(updatedQuestions);
+        // Remove videos for this module
+        const updatedVideos = { ...videos };
+        delete updatedVideos[moduleId];
+        setVideos(updatedVideos);
 
-    // Remove videos for this module
-    const updatedVideos = { ...videos };
-    delete updatedVideos[moduleId];
-    setVideos(updatedVideos);
+        // Remove pending videos for this module
+        const updatedPendingVideos = { ...pendingVideos };
+        delete updatedPendingVideos[moduleId];
+        setPendingVideos(updatedPendingVideos);
 
-    // Remove pending videos for this module
-    const updatedPendingVideos = { ...pendingVideos };
-    delete updatedPendingVideos[moduleId];
-    setPendingVideos(updatedPendingVideos);
+        // Close any open views/details for this module
+        const updatedModuleDetailsOpen = { ...moduleDetailsOpen };
+        delete updatedModuleDetailsOpen[moduleId];
+        setModuleDetailsOpen(updatedModuleDetailsOpen);
 
-    // Close any open views/details for this module
-    const updatedModuleDetailsOpen = { ...moduleDetailsOpen };
-    delete updatedModuleDetailsOpen[moduleId];
-    setModuleDetailsOpen(updatedModuleDetailsOpen);
+        const updatedModuleView = { ...moduleView };
+        delete updatedModuleView[moduleId];
+        setModuleView(updatedModuleView);
 
-    const updatedModuleView = { ...moduleView };
-    delete updatedModuleView[moduleId];
-    setModuleView(updatedModuleView);
+        const updatedSelectedVideoType = { ...selectedVideoType };
+        delete updatedSelectedVideoType[moduleId];
+        setSelectedVideoType(updatedSelectedVideoType);
 
-    const updatedSelectedVideoType = { ...selectedVideoType };
-    delete updatedSelectedVideoType[moduleId];
-    setSelectedVideoType(updatedSelectedVideoType);
-
-    // Remove videos from IndexedDB
-    if (typeof window !== 'undefined') {
-      try {
-        await removeModuleVideos(moduleId);
-      } catch (error) {
-        console.error('Error removing module videos from IndexedDB:', error);
+        alert('Module deleted successfully!');
+      } else {
+        alert(response.error || 'Failed to delete module');
       }
-    }
-
-    // Save to localStorage
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('adminEditedModules', JSON.stringify(updatedModules));
-      localStorage.setItem('adminEditedQuestions', JSON.stringify(updatedQuestions));
+    } catch (error) {
+      console.error('Error deleting module:', error);
+      alert('An error occurred while deleting the module. Please try again.');
     }
   };
 
@@ -968,53 +1104,64 @@ export default function Home() {
     const pendingVideo = pendingVideos[moduleId]?.[videoType];
     if (!pendingVideo || pendingVideo.length === 0) return;
 
-    // Move from pending to saved videos
     const videoToSave = pendingVideo[0];
-    const updatedVideos = {
-      ...videos,
-      [moduleId]: {
-        ...(videos[moduleId] || { english: [], punjabi: [], hindi: [], activity: [] }),
-        [videoType]: pendingVideo
-      }
-    };
-    setVideos(updatedVideos);
     
-    // Clear pending video
-    setPendingVideos(prev => ({
-      ...prev,
-      [moduleId]: {
-        ...(prev[moduleId] || { english: null, punjabi: null, hindi: null, activity: null }),
-        [videoType]: null
-      }
-    }));
-    
-    // Save to IndexedDB (handles large files much better than localStorage)
-    if (typeof window !== 'undefined') {
-      try {
-        await initDB();
-        await saveVideo(moduleId, videoType, videoToSave);
+    try {
+      // Get the next video ID for this module and video type
+      const existingVideos = videos[moduleId]?.[videoType] || [];
+      const nextVideoId = existingVideos.length > 0 
+        ? Math.max(...existingVideos.map(v => v.id)) + 1 
+        : 1;
+      
+      // Create video via API
+      const videoData: VideoData = {
+        moduleId,
+        videoType: videoType as 'english' | 'punjabi' | 'hindi' | 'activity',
+        videoId: nextVideoId,
+        preview: videoToSave.preview,
+        fileName: videoToSave.fileName,
+        fileSize: videoToSave.fileSize,
+      };
+      
+      const response = await createVideo(videoData);
+      
+      if (response.success && response.data?.video) {
+        const createdVideo = response.data.video;
         
-        // Reload videos from IndexedDB to ensure they're in sync
-        const indexedDBVideos = await getAllVideos();
-        if (Object.keys(indexedDBVideos).length > 0) {
-          const normalizedVideos: typeof indexedDBVideos = {};
-          Object.keys(indexedDBVideos).forEach(moduleIdStr => {
-            const modId = Number(moduleIdStr);
-            normalizedVideos[modId] = {
-              english: indexedDBVideos[modId]?.english || [],
-              punjabi: indexedDBVideos[modId]?.punjabi || [],
-              hindi: indexedDBVideos[modId]?.hindi || [],
-              activity: indexedDBVideos[modId]?.activity || []
-            };
-          });
-          setVideos(normalizedVideos);
-        }
+        // Update videos state
+        const updatedVideos = {
+          ...videos,
+          [moduleId]: {
+            ...(videos[moduleId] || { english: [], punjabi: [], hindi: [], activity: [] }),
+            [videoType]: [
+              ...(videos[moduleId]?.[videoType] || []),
+              {
+                id: createdVideo.videoId,
+                preview: createdVideo.preview,
+                fileName: createdVideo.fileName,
+                fileSize: createdVideo.fileSize,
+              }
+            ]
+          }
+        };
+        setVideos(updatedVideos);
+        
+        // Clear pending video
+        setPendingVideos(prev => ({
+          ...prev,
+          [moduleId]: {
+            ...(prev[moduleId] || { english: null, punjabi: null, hindi: null, activity: null }),
+            [videoType]: null
+          }
+        }));
         
         alert('Video saved successfully! All users can now view this video.');
-      } catch (error: any) {
-        console.error('Error saving video to IndexedDB:', error);
-        alert('Error saving video: ' + (error.message || 'Unknown error') + '. The video will work in this session but may not persist after page refresh.');
+      } else {
+        alert(response.error || 'Failed to save video');
       }
+    } catch (error: any) {
+      console.error('Error saving video:', error);
+      alert('Error saving video: ' + (error.message || 'Unknown error') + '. Please try again.');
     }
   };
 
@@ -1024,22 +1171,26 @@ export default function Home() {
     const videoType = selectedVideoType[moduleId];
     if (!videoType) return;
     
-    const updatedVideos = {
-      ...videos,
-      [moduleId]: {
-        ...videos[moduleId],
-        [videoType]: videos[moduleId][videoType].filter(video => video.id !== id)
+    try {
+      // Delete video via API
+      const response = await deleteVideo(id, moduleId, videoType);
+      
+      if (response.success) {
+        const updatedVideos = {
+          ...videos,
+          [moduleId]: {
+            ...videos[moduleId],
+            [videoType]: videos[moduleId][videoType].filter(video => video.id !== id)
+          }
+        };
+        setVideos(updatedVideos);
+        alert('Video deleted successfully!');
+      } else {
+        alert(response.error || 'Failed to delete video');
       }
-    };
-    setVideos(updatedVideos);
-    
-    // Remove from IndexedDB
-    if (typeof window !== 'undefined') {
-      try {
-        await removeVideo(moduleId, videoType, id);
-      } catch (error: any) {
-        console.error('Error removing video from IndexedDB:', error);
-      }
+    } catch (error: any) {
+      console.error('Error removing video:', error);
+      alert('An error occurred while deleting the video. Please try again.');
     }
   };
 
@@ -1102,31 +1253,41 @@ export default function Home() {
       const result = await response.json();
 
       if (result.success) {
-        // Save answers to state and localStorage
+        // Submit answers to API
         const answersToSave: { [questionId: number]: string } = {};
+        const answerPromises: Promise<any>[] = [];
+        
         questions.forEach((q) => {
           const answer = formData.get(`question-${q.id}`);
           if (answer) {
             answersToSave[q.id] = answer as string;
+            // Submit each answer via API
+            answerPromises.push(
+              submitAnswer({
+                moduleId,
+                questionId: q.id,
+                answer: answer as string,
+              })
+            );
           }
         });
         
-        const updatedSavedAnswers = {
-          ...savedAnswers,
-          [moduleId]: answersToSave
-        };
-        setSavedAnswers(updatedSavedAnswers);
-        
-        // Save to both localStorage and server file
         try {
-          await saveModuleAnswers(moduleId, answersToSave);
-          console.log('Answers saved successfully to server file');
-        } catch (error) {
-          console.error('Error saving answers:', error);
-          // Still save to localStorage as fallback
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('savedAnswers', JSON.stringify(updatedSavedAnswers));
+          const answerResults = await Promise.all(answerPromises);
+          const allSuccessful = answerResults.every(r => r.success);
+          
+          if (allSuccessful) {
+            const updatedSavedAnswers = {
+              ...savedAnswers,
+              [moduleId]: answersToSave
+            };
+            setSavedAnswers(updatedSavedAnswers);
+            console.log('Answers saved successfully to API');
+          } else {
+            console.warn('Some answers failed to save to API');
           }
+        } catch (error) {
+          console.error('Error saving answers to API:', error);
         }
 
         if (result.configured === false) {
@@ -1161,6 +1322,10 @@ export default function Home() {
         }}
         onModulesClick={() => {
           setIsModulesPanelOpen(true);
+        }}
+        onLoginHistoryClick={() => {
+          setShowLoginHistory(true);
+          fetchLoginHistory();
         }}
       />
 
@@ -1216,8 +1381,11 @@ export default function Home() {
                 onClick={() => {
                   setShowUserLogin(false);
                   setLoginMode('user');
-                  setLoginName("");
+                  setLoginUsername("");
                   setLoginEmail("");
+                  setLoginOTP("");
+                  setLoginPassword("");
+                  setLoginStep('email');
                   setLoginError("");
                   setAdminPassword("");
                   setAdminLoginError("");
@@ -1238,6 +1406,10 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     setLoginMode('user');
+                    setLoginStep('email');
+                    setLoginUsername("");
+                    setLoginEmail("");
+                    setLoginOTP("");
                     setAdminPassword("");
                     setAdminLoginError("");
                   }}
@@ -1253,8 +1425,11 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     setLoginMode('admin');
-                    setLoginName("");
+                    setLoginStep('email');
+                    setLoginUsername("");
                     setLoginEmail("");
+                    setLoginOTP("");
+                    setLoginPassword("");
                     setLoginError("");
                   }}
                   className={`flex-1 px-4 py-2 rounded-md font-semibold text-sm transition-colors ${
@@ -1270,82 +1445,157 @@ export default function Home() {
 
             {/* User Login Form */}
             {loginMode === 'user' && (
-              <form onSubmit={handleUserLogin}>
-                {/* Available Test Users */}
-                <div className="mb-4 p-2 sm:p-3 bg-slate-700 border-2 border-yellow-500 rounded-lg shadow-sm">
-                  <p className="text-xs font-semibold text-yellow-400 mb-2">Available Test Users:</p>
-                  <div className="space-y-1">
-                    {USER_CREDENTIALS.map((user, idx) => (
-                      <div key={idx} className="text-xs text-gray-300 font-medium break-words">
-                        <span className="font-medium">{user.name}</span> - {user.email}
+              <>
+                {loginStep === 'email' ? (
+                  <form onSubmit={handleRequestOTP}>
+                    <div className="mb-4">
+                      <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                        Username <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={loginUsername}
+                        onChange={(e) => {
+                          setLoginUsername(e.target.value);
+                          setLoginError("");
+                        }}
+                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                        placeholder="Enter your username"
+                        autoFocus
+                        required
+                      />
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                        Email Address <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={loginEmail}
+                        onChange={(e) => {
+                          setLoginEmail(e.target.value);
+                          setLoginError("");
+                        }}
+                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                        placeholder="Enter your email address"
+                        required
+                      />
+                    </div>
+                    {loginError && (
+                      <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
+                        <p className="text-xs sm:text-sm text-red-300 font-medium">{loginError}</p>
                       </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-yellow-400 mt-2 italic font-medium">Or login with any name/email</p>
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
-                    Name <span className="text-gray-400 text-xs">(Optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={loginName}
-                    onChange={(e) => {
-                      setLoginName(e.target.value);
-                      setLoginError("");
-                    }}
-                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
-                    placeholder="Enter your name"
-                    autoFocus
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
-                    Email <span className="text-gray-400 text-xs">(Optional)</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={loginEmail}
-                    onChange={(e) => {
-                      setLoginEmail(e.target.value);
-                      setLoginError("");
-                    }}
-                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
-                    placeholder="Enter your email"
-                  />
-                </div>
-                {loginError && (
-                  <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
-                    <p className="text-xs sm:text-sm text-red-300 font-medium">{loginError}</p>
-                  </div>
+                    )}
+                    <div className="flex gap-2 sm:gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserLogin(false);
+                          setLoginUsername("");
+                          setLoginEmail("");
+                          setLoginOTP("");
+                          setLoginStep('email');
+                          setLoginError("");
+                        }}
+                        className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isRequestingOTP}
+                        className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isRequestingOTP ? 'Sending OTP...' : 'Send OTP'}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <form onSubmit={handleVerifyOTP}>
+                    <div className="mb-4">
+                      <p className="text-xs sm:text-sm text-gray-300 mb-2">
+                        We've sent a 6-digit OTP to your email address. Please check your inbox (and spam folder) and enter the code below.
+                      </p>
+                      <p className="text-xs text-yellow-400 mb-2">
+                        💡 Tip: If you don't receive the email, check the server console (terminal) for the OTP code in development mode.
+                      </p>
+                      <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                        Enter OTP
+                      </label>
+                      <input
+                        type="text"
+                        value={loginOTP}
+                        onChange={(e) => {
+                          // Only allow digits and limit to 6 characters
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                          setLoginOTP(value);
+                          setLoginError("");
+                        }}
+                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white text-center text-2xl tracking-widest"
+                        placeholder="000000"
+                        autoFocus
+                        maxLength={6}
+                        required
+                      />
+                    </div>
+                    {loginError && (
+                      <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
+                        <p className="text-xs sm:text-sm text-red-300 font-medium">{loginError}</p>
+                      </div>
+                    )}
+                    <div className="flex gap-2 sm:gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLoginStep('email');
+                          setLoginOTP("");
+                          setLoginError("");
+                        }}
+                        className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRequestOTP}
+                        disabled={isRequestingOTP}
+                        className="px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-500 text-gray-200 font-semibold rounded-lg hover:bg-slate-400 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isRequestingOTP ? 'Sending...' : 'Resend OTP'}
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isLoginLoading || loginOTP.length !== 6}
+                        className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isLoginLoading ? 'Verifying...' : 'Verify & Login'}
+                      </button>
+                    </div>
+                  </form>
                 )}
-                <div className="flex gap-2 sm:gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowUserLogin(false);
-                      setLoginName("");
-                      setLoginEmail("");
-                      setLoginError("");
-                    }}
-                    className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl"
-                  >
-                    Login
-                  </button>
-                </div>
-              </form>
+              </>
             )}
 
             {/* Admin Login Form */}
             {loginMode === 'admin' && (
               <form onSubmit={handleAdminLogin}>
+                <div className="mb-4">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    value={adminUsername}
+                    onChange={(e) => {
+                      setAdminUsername(e.target.value);
+                      setAdminLoginError("");
+                    }}
+                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                    placeholder="Enter admin username"
+                    autoFocus
+                    required
+                  />
+                </div>
                 <div className="mb-4">
                   <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
                     Password
@@ -1359,9 +1609,8 @@ export default function Home() {
                     }}
                     className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
                     placeholder="Enter admin password"
-                    autoFocus
+                    required
                   />
-                  <p className="mt-1 text-xs text-yellow-400 font-medium">Default password: admin123</p>
                 </div>
                 {adminLoginError && (
                   <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
@@ -1372,8 +1621,9 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => {
-                      setShowUserLogin(false);
+                      setShowAdminLogin(false);
                       setLoginMode('user');
+                      setAdminUsername("");
                       setAdminPassword("");
                       setAdminLoginError("");
                     }}
@@ -1383,13 +1633,102 @@ export default function Home() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl"
+                    disabled={isAdminLoading}
+                    className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Admin Login
+                    {isAdminLoading ? 'Logging in...' : 'Admin Login'}
                   </button>
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Login History Modal */}
+      {showLoginHistory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-blue-800 rounded-lg shadow-2xl max-w-4xl w-full mx-4 sm:mx-auto p-4 sm:p-6 relative z-[201] border-2 border-yellow-500 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-yellow-400">
+                Login History
+              </h2>
+              <button
+                onClick={() => {
+                  setShowLoginHistory(false);
+                  setLoginHistory([]);
+                  setHistoryError("");
+                }}
+                className="text-gray-400 hover:text-yellow-400 transition-colors"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            {isLoadingHistory ? (
+              <div className="text-center py-8">
+                <p className="text-yellow-400">Loading login history...</p>
+              </div>
+            ) : historyError ? (
+              <div className="mb-4 p-3 bg-red-900 border-2 border-red-500 rounded-lg">
+                <p className="text-sm text-red-300">{historyError}</p>
+              </div>
+            ) : loginHistory.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-300">No login history found.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-yellow-500">
+                      <th className="text-left py-2 px-2 text-yellow-400">Username</th>
+                      <th className="text-left py-2 px-2 text-yellow-400">Email</th>
+                      <th className="text-left py-2 px-2 text-yellow-400">Role</th>
+                      <th className="text-left py-2 px-2 text-yellow-400">Login Time</th>
+                      <th className="text-left py-2 px-2 text-yellow-400">IP Address</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loginHistory.map((login) => (
+                      <tr key={login.id} className="border-b border-slate-600 hover:bg-slate-700">
+                        <td className="py-2 px-2 text-white">{login.username}</td>
+                        <td className="py-2 px-2 text-white">{login.email}</td>
+                        <td className="py-2 px-2">
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            login.role === 'admin' 
+                              ? 'bg-yellow-500 text-slate-900' 
+                              : 'bg-slate-600 text-white'
+                          }`}>
+                            {login.role}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 text-white">
+                          {new Date(login.loginAt).toLocaleString()}
+                        </td>
+                        <td className="py-2 px-2 text-gray-300 text-xs">{login.ipAddress || 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowLoginHistory(false);
+                  setLoginHistory([]);
+                  setHistoryError("");
+                }}
+                className="px-4 py-2 bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1498,7 +1837,7 @@ export default function Home() {
         </div>
 
             {/* Panel Content */}
-            <div className="px-3 sm:px-4 py-3 sm:py-4 overflow-y-auto h-[calc(100vh-140px)] sm:h-[calc(600px-60px)]">
+            <div className="px-3 sm:px-4 py-3 sm:py-4 pb-10 sm:pb-12 overflow-y-auto h-[calc(100vh-140px)] sm:h-[calc(600px-60px)]">
               <p className="text-black mb-4 text-xs sm:text-sm leading-relaxed bg-white/90 backdrop-blur-sm p-2 sm:p-3 rounded-lg border-2 border-yellow-500 shadow-sm font-medium">
               Eight comprehensive modules designed for adolescents aged 12-18 combining evidence-based content with purpose-specific for natural relevance.
             </p>
@@ -2238,13 +2577,12 @@ export default function Home() {
                               if (form) {
                                 form.reset();
                               }
-                              // Clear saved answers for this module
+                              // Clear saved answers for this module (local state only)
                               const updatedAnswers = { ...savedAnswers };
                               delete updatedAnswers[module.id];
                               setSavedAnswers(updatedAnswers);
-                              if (typeof window !== 'undefined') {
-                                localStorage.setItem('savedAnswers', JSON.stringify(updatedAnswers));
-                              }
+                              // Note: Answers are stored in the database via API, 
+                              // clearing form only clears local state for UI purposes
                             }}
                             className="px-6 py-3 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 border border-gray-200 transition-all duration-200"
                           >
