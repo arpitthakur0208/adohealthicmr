@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import path from 'path';
+import connectDB from '@/backend/lib/db';
+import Module from '@/backend/models/Module';
+import Question from '@/backend/models/Question';
+import { requireAdmin } from '@/backend/lib/auth';
 
-// Define the data directory path
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DATA_FILE = path.join(DATA_DIR, 'app-data.json');
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest) {
+// This route maintains backward compatibility with the old file-based system
+// It saves data from the old JSON format to the database
+export const POST = requireAdmin(async (request: NextRequest, user) => {
   try {
-    // Ensure data directory exists
-    if (!existsSync(DATA_DIR)) {
-      await mkdir(DATA_DIR, { recursive: true });
-    }
 
-    // Get the data from request body
     const data = await request.json();
 
     // Validate data structure
@@ -25,20 +22,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Add timestamp
-    const dataToSave = {
-      ...data,
-      lastUpdated: new Date().toISOString(),
-      savedAt: new Date().toISOString(),
-    };
+    // Save modules
+    if (data.modules && Array.isArray(data.modules)) {
+      for (const moduleData of data.modules) {
+        await Module.findOneAndUpdate(
+          { id: moduleData.id },
+          {
+            id: moduleData.id,
+            title: moduleData.title,
+            description: moduleData.description,
+            color: moduleData.color,
+          },
+          { upsert: true, new: true }
+        );
+      }
+    }
 
-    // Write to file
-    await writeFile(DATA_FILE, JSON.stringify(dataToSave, null, 2), 'utf-8');
+    // Save questions
+    if (data.questions && typeof data.questions === 'object') {
+      for (const [moduleIdStr, questions] of Object.entries(data.questions)) {
+        const moduleId = parseInt(moduleIdStr);
+        if (!isNaN(moduleId) && Array.isArray(questions)) {
+          for (const questionData of questions) {
+            await Question.findOneAndUpdate(
+              { id: questionData.id, moduleId },
+              {
+                id: questionData.id,
+                moduleId,
+                question: questionData.question,
+                options: questionData.options,
+                correctAnswer: questionData.correctAnswer,
+              },
+              { upsert: true, new: true }
+            );
+          }
+        }
+      }
+    }
+
+    // Note: Answers are not migrated here as they're user-specific
+    // Use the /api/answers endpoint for user answers
 
     return NextResponse.json({
       success: true,
-      message: 'Data saved successfully',
-      savedAt: dataToSave.savedAt,
+      message: 'Data saved successfully to database',
+      savedAt: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Error saving data:', error);
@@ -47,4 +75,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
