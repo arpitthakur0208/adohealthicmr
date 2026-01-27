@@ -4,6 +4,9 @@ import User from '@/backend/models/User';
 import OTP from '@/backend/models/OTP';
 import { sendOTPEmail } from '@/backend/lib/email';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 /**
  * Request OTP API Endpoint
  * 

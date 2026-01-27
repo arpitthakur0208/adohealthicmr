@@ -3,6 +3,9 @@ import connectDB from '@/backend/lib/db';
 import Question from '@/backend/models/Question';
 import { requireAdmin } from '@/backend/lib/auth';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 // GET single question by ID and moduleId
 export async function GET(
   request: NextRequest,

@@ -4,6 +4,9 @@ import Answer from '@/backend/models/Answer';
 import Question from '@/backend/models/Question';
 import { getCurrentUser, requireAuth } from '@/backend/lib/auth';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 // GET all answers (optionally filtered by userId, moduleId)
 export const GET = requireAuth(async (request: NextRequest, user) => {
   try {

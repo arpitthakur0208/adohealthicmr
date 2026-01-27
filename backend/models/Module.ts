@@ -37,8 +37,8 @@ const ModuleSchema = new Schema<IModule>(
   }
 );
 
-// Index for faster queries
-ModuleSchema.index({ id: 1 });
+// Note: id field already has unique: true which creates an index automatically
+// No need for explicit index() call
 
 const Module: Model<IModule> = mongoose.models.Module || mongoose.model<IModule>('Module', ModuleSchema);
 

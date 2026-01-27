@@ -7,6 +7,9 @@ import User from '@/backend/models/User';
 import Video from '@/backend/models/Video';
 import { requireAuth } from '@/backend/lib/auth';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 // GET statistics (Authenticated users)
 export const GET = requireAuth(async (request: NextRequest, user) => {
   try {

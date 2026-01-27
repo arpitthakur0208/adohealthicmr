@@ -3,6 +3,9 @@ import connectDB from '@/backend/lib/db';
 import Video from '@/backend/models/Video';
 import { requireAuth, requireAdmin } from '@/backend/lib/auth';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 // GET all videos (optionally filtered by moduleId and videoType)
 export const GET = requireAuth(async (request: NextRequest, user) => {
   try {

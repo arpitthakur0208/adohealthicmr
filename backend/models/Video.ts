@@ -18,13 +18,13 @@ const VideoSchema = new Schema<IVideo>(
     moduleId: {
       type: Number,
       required: [true, 'Module ID is required'],
-      index: true,
+      // index: true removed - covered by compound index below
     },
     videoType: {
       type: String,
       enum: ['english', 'punjabi', 'hindi', 'activity'],
       required: [true, 'Video type is required'],
-      index: true,
+      // index: true removed - covered by compound index below
     },
     videoId: {
       type: Number,

@@ -3,6 +3,9 @@ import connectDB from '@/backend/lib/db';
 import User from '@/backend/models/User';
 import { generateToken } from '@/backend/lib/auth';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     await connectDB();

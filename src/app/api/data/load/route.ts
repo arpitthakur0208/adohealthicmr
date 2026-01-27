@@ -3,6 +3,9 @@ import connectDB from '@/backend/lib/db';
 import Module from '@/backend/models/Module';
 import Question from '@/backend/models/Question';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 // This route maintains backward compatibility with the old file-based system
 // It loads data from the database and formats it like the old JSON structure
 export async function GET() {

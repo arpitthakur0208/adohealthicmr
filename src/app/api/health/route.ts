@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/backend/lib/db';
 import User from '@/backend/models/User';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 /**
  * Health check endpoint
  * GET /api/health

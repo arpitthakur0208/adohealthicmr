@@ -3,6 +3,9 @@ import connectDB from '@/backend/lib/db';
 import LoginHistory from '@/backend/models/LoginHistory';
 import { requireAdmin } from '@/backend/lib/auth';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 /**
  * Get Login History API Endpoint (Admin Only)
  * 

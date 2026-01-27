@@ -5,6 +5,9 @@ import Question from '@/backend/models/Question';
 import Video from '@/backend/models/Video';
 import { requireAdmin } from '@/backend/lib/auth';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 /**
  * Bulk operations API (Admin only)
  * Supports bulk create, update, and delete operations

@@ -17,12 +17,12 @@ const AnswerSchema = new Schema<IAnswer>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'User ID is required'],
-      index: true,
+      // index: true removed - covered by compound index below
     },
     moduleId: {
       type: Number,
       required: [true, 'Module ID is required'],
-      index: true,
+      // index: true removed - covered by compound index below
     },
     questionId: {
       type: Number,

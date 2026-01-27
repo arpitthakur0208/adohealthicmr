@@ -19,7 +19,7 @@ const QuestionSchema = new Schema<IQuestion>(
     moduleId: {
       type: Number,
       required: [true, 'Module ID is required'],
-      index: true,
+      // index: true removed - covered by compound index below
     },
     question: {
       type: String,

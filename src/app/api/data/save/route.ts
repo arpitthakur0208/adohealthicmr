@@ -4,6 +4,9 @@ import Module from '@/backend/models/Module';
 import Question from '@/backend/models/Question';
 import { requireAdmin } from '@/backend/lib/auth';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 // This route maintains backward compatibility with the old file-based system
 // It saves data from the old JSON format to the database
 export const POST = requireAdmin(async (request: NextRequest, user) => {

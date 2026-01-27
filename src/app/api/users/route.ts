@@ -3,6 +3,9 @@ import connectDB from '@/backend/lib/db';
 import User from '@/backend/models/User';
 import { requireAdmin } from '@/backend/lib/auth';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 // GET all users (Admin only)
 export const GET = requireAdmin(async (request: NextRequest, user) => {
   try {

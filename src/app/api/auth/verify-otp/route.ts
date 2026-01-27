@@ -6,6 +6,9 @@ import LoginHistory from '@/backend/models/LoginHistory';
 import { generateToken } from '@/backend/lib/auth';
 import { getRolePermissions, isValidRole } from '@/backend/lib/roles';
 
+// Force dynamic rendering for API routes
+export const dynamic = 'force-dynamic';
+
 /**
  * Verify OTP API Endpoint
  * 
