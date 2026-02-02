@@ -1,62 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/backend/lib/db';
-import LoginHistory from '@/backend/models/LoginHistory';
+import { getLoginHistory } from '@/lib/pg-auth';
 import { requireAdmin } from '@/backend/lib/auth';
 
-// Force dynamic rendering for API routes
 export const dynamic = 'force-dynamic';
 
-/**
- * Get Login History API Endpoint (Admin Only)
- * 
- * GET /api/auth/login-history
- * Query params: ?limit=50&offset=0
- * 
- * Returns: { success: true, data: { logins: [], total: number } }
- */
 async function handler(request: NextRequest) {
   try {
-    await connectDB();
-
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
-
-    // Get login history, sorted by most recent first
-    const logins = await LoginHistory.find()
-      .sort({ loginAt: -1 })
-      .limit(limit)
-      .skip(offset)
-      .lean();
-
-    // Get total count
-    const total = await LoginHistory.countDocuments();
-
-    // Format the response
-    const formattedLogins = logins.map(login => ({
-      id: login._id.toString(),
-      userId: login.userId.toString(),
+    const all = await getLoginHistory(500);
+    const total = all.length;
+    const logins = all.slice(offset, offset + limit).map((login) => ({
+      id: `${login.userId}-${login.loginAt}`,
+      userId: login.userId,
       username: login.username,
       email: login.email,
       role: login.role,
       loginAt: login.loginAt,
       ipAddress: login.ipAddress,
       userAgent: login.userAgent,
-      createdAt: login.createdAt,
     }));
-
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          logins: formattedLogins,
-          total,
-          limit,
-          offset,
-        },
+    return NextResponse.json({
+      success: true,
+      data: {
+        logins,
+        total,
+        limit,
+        offset,
       },
-      { status: 200 }
-    );
+    });
   } catch (error) {
     console.error('Get login history error:', error);
     return NextResponse.json(

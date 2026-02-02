@@ -1,59 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/backend/lib/db';
-import User from '@/backend/models/User';
 import { getCurrentUser } from '@/backend/lib/auth';
+import { getUserByUsername } from '@/lib/pg-auth';
 
-// Force dynamic rendering for API routes
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    // Connect to database
-    try {
-      await connectDB();
-    } catch (dbError) {
-      console.error('Database connection error:', dbError);
-      return NextResponse.json(
-        { 
-          error: 'Database connection failed',
-          message: 'Unable to connect to database. Please check your MongoDB connection.',
-          details: dbError instanceof Error ? dbError.message : 'Unknown database error'
-        },
-        { status: 500 }
-      );
+    const payload = await getCurrentUser(request);
+    if (!payload) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userPayload = await getCurrentUser(request);
-    if (!userPayload) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    // OTP users: userId is otp:email, no store record
+    if (payload.userId.startsWith('otp:')) {
+      return NextResponse.json({
+        success: true,
+        user: { id: payload.userId, username: payload.username, email: payload.userId.replace('otp:', ''), role: payload.role },
+      });
     }
 
-    const user = await User.findById(userPayload.userId).select('-password');
+    const user = await getUserByUsername(payload.username);
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     return NextResponse.json({
       success: true,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        createdAt: user.createdAt,
-      },
+      user: { id: user.id, username: user.username, email: user.email, role: user.role },
     });
   } catch (error) {
     console.error('Get current user error:', error);
-    return NextResponse.json(
-      { error: 'Failed to get user information' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to get user information' }, { status: 500 });
   }
 }

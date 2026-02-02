@@ -1,12 +1,11 @@
 /**
- * Script to create an admin user
- * Run this with: npx tsx src/scripts/create-admin.ts
- * Or: ts-node src/scripts/create-admin.ts
+ * Script to create an admin user in PostgreSQL.
+ * Run: npx tsx src/scripts/create-admin.ts
+ * Requires DATABASE_URL in .env
  */
 
 import readline from 'readline';
-import connectDB from '../lib/db';
-import User from '../models/User';
+import { createUser, getUserByUsername, ensureAuthSchema } from '../lib/pg-auth';
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -21,38 +20,34 @@ function question(query: string): Promise<string> {
 
 async function createAdmin() {
   try {
-    await connectDB();
-    console.log('✅ Connected to database');
-
-    const username = await question('Enter username: ');
+    await ensureAuthSchema();
+    const username = (await question('Enter username: ')).trim();
     const password = await question('Enter password: ');
-    const email = await question('Enter email (optional): ');
+    const email = (await question('Enter email (optional): ')).trim();
 
     if (!username || !password) {
       console.error('❌ Username and password are required');
       process.exit(1);
     }
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ username });
-    if (existingUser) {
+    const existing = await getUserByUsername(username);
+    if (existing) {
       console.error(`❌ User with username "${username}" already exists`);
       process.exit(1);
     }
 
-    // Create admin user
-    const admin = await User.create({
+    const admin = await createUser({
+      id: `admin-${Date.now()}`,
       username,
-      password,
-      email: email || undefined,
+      email: email || `${username}@localhost`,
       role: 'admin',
+      password,
     });
 
-    console.log('✅ Admin user created successfully!');
+    console.log('✅ Admin user created successfully (PostgreSQL)!');
     console.log(`   Username: ${admin.username}`);
-    console.log(`   Email: ${admin.email || 'N/A'}`);
+    console.log(`   Email: ${admin.email}`);
     console.log(`   Role: ${admin.role}`);
-    
     rl.close();
     process.exit(0);
   } catch (error) {

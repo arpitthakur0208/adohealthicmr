@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import jwt from 'jsonwebtoken';
-import User from '@/models/User';
+import { getUserById, getUserByUsername } from '@/lib/pg-auth';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -26,30 +26,20 @@ export function verifyToken(token: string): JWTPayload | null {
 
 export async function getCurrentUser(request: NextRequest): Promise<JWTPayload | null> {
   try {
-    const token = request.cookies.get('token')?.value || 
+    const token = request.cookies.get('token')?.value ||
                   request.headers.get('authorization')?.replace('Bearer ', '');
 
-    if (!token) {
-      return null;
-    }
+    if (!token) return null;
 
     const payload = verifyToken(token);
-    if (!payload) {
-      return null;
-    }
+    if (!payload) return null;
 
-    // Verify user still exists (database connection will be handled by mongoose)
-    // Note: This assumes the database is already connected, which is done in route handlers
-    try {
-      const user = await User.findById(payload.userId);
-      if (!user) {
-        return null;
-      }
-    } catch (dbError) {
-      // If database is not connected, just return the payload (token is valid)
-      // The route handler will handle database connection
-      console.warn('Database not connected in getCurrentUser, skipping user verification:', dbError);
-    }
+    // OTP users: no store record, trust JWT
+    if (payload.userId.startsWith('otp:')) return payload;
+
+    // Verify stored user still exists (PostgreSQL)
+    const user = (await getUserById(payload.userId)) ?? (await getUserByUsername(payload.username));
+    if (!user) return null;
 
     return payload;
   } catch (error) {
@@ -62,22 +52,13 @@ export function requireAuth(
   handler: (req: NextRequest, user: JWTPayload, context?: any) => Promise<Response>
 ) {
   return async (req: NextRequest, context?: any) => {
-    // Connect to database first
-    const connectDB = (await import('@/lib/db')).default;
-    await connectDB();
-    
     const user = await getCurrentUser(req);
-    
     if (!user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { 
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
-
     return handler(req, user, context);
   };
 }
@@ -86,32 +67,19 @@ export function requireAdmin(
   handler: (req: NextRequest, user: JWTPayload, context?: any) => Promise<Response>
 ) {
   return async (req: NextRequest, context?: any) => {
-    // Connect to database first
-    const connectDB = (await import('@/lib/db')).default;
-    await connectDB();
-    
     const user = await getCurrentUser(req);
-    
     if (!user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { 
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
-
     if (user.role !== 'admin') {
-      return new Response(
-        JSON.stringify({ error: 'Forbidden - Admin access required' }),
-        { 
-          status: 403,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Forbidden - Admin access required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
-
     return handler(req, user, context);
   };
 }

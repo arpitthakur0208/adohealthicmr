@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server';
-import User from '@/backend/models/User';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -10,112 +9,74 @@ export interface JWTPayload {
 }
 
 export function generateToken(payload: JWTPayload): string {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const jwtLib = require('jsonwebtoken');
-  return jwtLib.sign(payload, JWT_SECRET, {
-    expiresIn: '7d',
-  });
+  return jwtLib.sign(payload, JWT_SECRET, { expiresIn: '7d' });
 }
 
 export function verifyToken(token: string): JWTPayload | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const jwtLib = require('jsonwebtoken');
     return jwtLib.verify(token, JWT_SECRET) as JWTPayload;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
 
 export async function getCurrentUser(request: NextRequest): Promise<JWTPayload | null> {
   try {
-    const token = request.cookies.get('token')?.value || 
-                  request.headers.get('authorization')?.replace('Bearer ', '');
-
-    if (!token) {
-      return null;
-    }
-
+    const token = request.cookies.get('token')?.value || request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) return null;
     const payload = verifyToken(token);
-    if (!payload) {
-      return null;
-    }
-
-    // Verify user still exists (database connection will be handled by mongoose)
-    // Note: This assumes the database is already connected, which is done in route handlers
-    try {
-      const user = await User.findById(payload.userId);
-      if (!user) {
-        return null;
-      }
-    } catch (dbError) {
-      // If database is not connected, just return the payload (token is valid)
-      // The route handler will handle database connection
-      console.warn('Database not connected in getCurrentUser, skipping user verification:', dbError);
-    }
-
-    return payload;
-  } catch (error) {
-    console.error('Error getting current user:', error);
+    return payload ?? null;
+  } catch {
     return null;
   }
 }
 
-export function requireAuth(
-  handler: (req: NextRequest, user: JWTPayload, context?: any) => Promise<Response>
-) {
+export function requireAuth(handler: (req: NextRequest, user: JWTPayload, context?: any) => Promise<Response>) {
   return async (req: NextRequest, context?: any) => {
-    // Connect to database first
-    const connectDB = (await import('@/backend/lib/db')).default;
-    await connectDB();
-    
-    const user = await getCurrentUser(req);
-    
-    if (!user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { 
+    try {
+      const user = await getCurrentUser(req);
+      if (!user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        }
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return await handler(req, user, context);
+    } catch (error) {
+      console.error('Error in requireAuth handler:', error);
+      return new Response(
+        JSON.stringify({ error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
-
-    return handler(req, user, context);
   };
 }
 
-export function requireAdmin(
-  handler: (req: NextRequest, user: JWTPayload, context?: any) => Promise<Response>
-) {
+export function requireAdmin(handler: (req: NextRequest, user: JWTPayload, context?: any) => Promise<Response>) {
   return async (req: NextRequest, context?: any) => {
-    // Connect to database first
-    const connectDB = (await import('@/backend/lib/db')).default;
-    await connectDB();
-    
-    const user = await getCurrentUser(req);
-    
-    if (!user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { 
+    try {
+      const user = await getCurrentUser(req);
+      if (!user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    if (user.role !== 'admin') {
-      return new Response(
-        JSON.stringify({ error: 'Forbidden - Admin access required' }),
-        { 
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (user.role !== 'admin') {
+        return new Response(JSON.stringify({ error: 'Forbidden - Admin access required' }), {
           status: 403,
-          headers: { 'Content-Type': 'application/json' }
-        }
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return await handler(req, user, context);
+    } catch (error) {
+      console.error('Error in requireAdmin handler:', error);
+      return new Response(
+        JSON.stringify({ error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
-
-    // Pass context with params to handler
-    return handler(req, user, context);
   };
 }

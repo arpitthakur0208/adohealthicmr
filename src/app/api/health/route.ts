@@ -1,36 +1,28 @@
 import { NextResponse } from 'next/server';
-import connectDB from '@/backend/lib/db';
-import User from '@/backend/models/User';
+import { getStoreStatus } from '@/lib/store';
+import { getUserByUsername, getUsersCount } from '@/lib/pg-auth';
 
-// Force dynamic rendering for API routes
 export const dynamic = 'force-dynamic';
 
-/**
- * Health check endpoint
- * GET /api/health
- * Returns database connection status and basic info
- */
 export async function GET() {
   try {
-    // Test database connection
-    await connectDB();
-    
-    // Check if admin user exists
-    const adminUser = await User.findOne({ username: 'adohealthicmr' });
-    const userCount = await User.countDocuments();
-    
+    const status = getStoreStatus();
+    const adminUser = await getUserByUsername('adohealthicmr');
+    const totalUsers = await getUsersCount();
     return NextResponse.json({
       status: 'healthy',
-      database: 'connected',
+      database: 'postgres',
+      store: 'in-memory',
       adminUserExists: !!adminUser,
-      totalUsers: userCount,
+      totalUsers,
+      modules: status.modules,
+      questions: status.questions,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     return NextResponse.json(
       {
         status: 'unhealthy',
-        database: 'disconnected',
         error: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString(),
       },

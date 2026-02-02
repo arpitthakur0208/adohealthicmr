@@ -1,61 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/backend/lib/db';
-import Video from '@/backend/models/Video';
+import { getVideoById, updateVideo, deleteVideo } from '@/lib/store';
 import { requireAdmin } from '@/backend/lib/auth';
 
-// Force dynamic rendering for API routes
 export const dynamic = 'force-dynamic';
 
-// GET single video by ID
+function parseParams(
+  params: Promise<{ id: string }> | { id: string },
+  searchParams: URLSearchParams
+): { videoId: number; moduleIdNum: number; videoType: string } | null {
+  const moduleId = searchParams.get('moduleId');
+  const videoType = searchParams.get('videoType');
+  if (!moduleId || !videoType) return null;
+  const videoId = parseInt(typeof params === 'object' && 'id' in params ? params.id : '');
+  const moduleIdNum = parseInt(moduleId);
+  if (isNaN(videoId) || isNaN(moduleIdNum)) return null;
+  if (!['english', 'punjabi', 'hindi', 'activity'].includes(videoType)) return null;
+  return { videoId, moduleIdNum, videoType };
+}
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    await connectDB();
-
+    const resolvedParams = params instanceof Promise ? await params : params;
     const { searchParams } = new URL(request.url);
-    const moduleId = searchParams.get('moduleId');
-    const videoType = searchParams.get('videoType');
-
-    if (!moduleId || !videoType) {
+    const p = parseParams(resolvedParams, searchParams);
+    if (!p) {
       return NextResponse.json(
-        { error: 'moduleId and videoType query parameters are required' },
+        { error: 'moduleId and videoType query parameters are required and must be valid' },
         { status: 400 }
       );
     }
-
-    const videoId = parseInt(params.id);
-    const moduleIdNum = parseInt(moduleId);
-
-    if (isNaN(videoId) || isNaN(moduleIdNum)) {
-      return NextResponse.json(
-        { error: 'Invalid video ID or module ID' },
-        { status: 400 }
-      );
-    }
-
-    if (!['english', 'punjabi', 'hindi', 'activity'].includes(videoType)) {
-      return NextResponse.json(
-        { error: 'Invalid video type' },
-        { status: 400 }
-      );
-    }
-
-    const video = await Video.findOne({ moduleId: moduleIdNum, videoType, videoId })
-      .populate('uploadedBy', 'username');
-
+    const video = getVideoById(p.moduleIdNum, p.videoType, p.videoId);
     if (!video) {
-      return NextResponse.json(
-        { error: 'Video not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
-
-    return NextResponse.json({
-      success: true,
-      video,
-    });
+    return NextResponse.json({ success: true, video });
   } catch (error) {
     console.error('Error fetching video:', error);
     return NextResponse.json(
@@ -65,51 +46,31 @@ export async function GET(
   }
 }
 
-// PUT update video (Admin only)
 export const PUT = requireAdmin(async (
   request: NextRequest,
   user,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> | { id: string } }
 ) => {
   try {
-    await connectDB();
-
+    const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
     const { searchParams } = new URL(request.url);
-    const moduleId = searchParams.get('moduleId');
-    const videoType = searchParams.get('videoType');
-
-    if (!moduleId || !videoType) {
+    const p = parseParams(resolvedParams, searchParams);
+    if (!p) {
       return NextResponse.json(
-        { error: 'moduleId and videoType query parameters are required' },
+        { error: 'moduleId and videoType query parameters are required and must be valid' },
         { status: 400 }
       );
     }
-
-    const videoId = parseInt(params.id);
-    const moduleIdNum = parseInt(moduleId);
-
-    if (isNaN(videoId) || isNaN(moduleIdNum)) {
-      return NextResponse.json(
-        { error: 'Invalid video ID or module ID' },
-        { status: 400 }
-      );
-    }
-
     const { preview, fileName, fileSize, fileUrl } = await request.json();
-
-    const updatedVideo = await Video.findOneAndUpdate(
-      { moduleId: moduleIdNum, videoType, videoId },
-      { preview, fileName, fileSize, fileUrl },
-      { new: true, runValidators: true }
-    ).populate('uploadedBy', 'username');
-
+    const updatedVideo = updateVideo(p.moduleIdNum, p.videoType, p.videoId, {
+      preview,
+      fileName,
+      fileSize,
+      fileUrl,
+    });
     if (!updatedVideo) {
-      return NextResponse.json(
-        { error: 'Video not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
-
     return NextResponse.json({
       success: true,
       message: 'Video updated successfully',
@@ -124,48 +85,26 @@ export const PUT = requireAdmin(async (
   }
 });
 
-// DELETE video (Admin only)
 export const DELETE = requireAdmin(async (
   request: NextRequest,
   user,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> | { id: string } }
 ) => {
   try {
-    await connectDB();
-
+    const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
     const { searchParams } = new URL(request.url);
-    const moduleId = searchParams.get('moduleId');
-    const videoType = searchParams.get('videoType');
-
-    if (!moduleId || !videoType) {
+    const p = parseParams(resolvedParams, searchParams);
+    if (!p) {
       return NextResponse.json(
-        { error: 'moduleId and videoType query parameters are required' },
+        { error: 'moduleId and videoType query parameters are required and must be valid' },
         { status: 400 }
       );
     }
-
-    const videoId = parseInt(params.id);
-    const moduleIdNum = parseInt(moduleId);
-
-    if (isNaN(videoId) || isNaN(moduleIdNum)) {
-      return NextResponse.json(
-        { error: 'Invalid video ID or module ID' },
-        { status: 400 }
-      );
+    const ok = deleteVideo(p.moduleIdNum, p.videoType, p.videoId);
+    if (!ok) {
+      return NextResponse.json({ error: 'Video not found' }, { status: 404 });
     }
-
-    const video = await Video.findOneAndDelete({ moduleId: moduleIdNum, videoType, videoId });
-    if (!video) {
-      return NextResponse.json(
-        { error: 'Video not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Video deleted successfully',
-    });
+    return NextResponse.json({ success: true, message: 'Video deleted successfully' });
   } catch (error) {
     console.error('Error deleting video:', error);
     return NextResponse.json(

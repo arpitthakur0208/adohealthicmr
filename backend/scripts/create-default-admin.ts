@@ -1,45 +1,21 @@
 /**
- * Script to create the default admin user
- * Run this with: npx tsx backend/scripts/create-default-admin.ts
+ * Default admin is loaded from data/app-data.json on first store load (no MongoDB).
+ * Run: npx tsx backend/scripts/create-default-admin.ts
  */
 
-// Use relative imports for scripts (path aliases may not work in tsx)
-import connectDB from '../lib/db';
-import User from '../models/User';
+import { getUserByUsername } from '../../src/lib/store';
 
-const DEFAULT_ADMIN = {
-  username: 'adohealthicmr',
-  password: 'Welcome@25',
-  email: 'admin@adohealthicmr.com',
-  role: 'admin' as const,
-};
+const DEFAULT_USERNAME = 'adohealthicmr';
 
-async function createDefaultAdmin() {
-  try {
-    await connectDB();
-    console.log('✅ Connected to database');
-
-    // Check if admin already exists
-    const existingAdmin = await User.findOne({ username: DEFAULT_ADMIN.username });
-    if (existingAdmin) {
-      console.log(`ℹ️  Admin user "${DEFAULT_ADMIN.username}" already exists. Skipping creation.`);
-      process.exit(0);
-    }
-
-    // Create default admin user
-    const admin = await User.create(DEFAULT_ADMIN);
-
-    console.log('✅ Default admin user created successfully!');
-    console.log(`   Username: ${admin.username}`);
-    console.log(`   Email: ${admin.email}`);
-    console.log(`   Role: ${admin.role}`);
-    console.log(`   Password: ${DEFAULT_ADMIN.password}`);
-    
-    process.exit(0);
-  } catch (error) {
-    console.error('❌ Failed to create default admin user:', error);
-    process.exit(1);
+function createDefaultAdmin() {
+  const user = getUserByUsername(DEFAULT_USERNAME);
+  if (user) {
+    console.log(`ℹ️  Default admin "${DEFAULT_USERNAME}" already exists in store.`);
+  } else {
+    console.log('ℹ️  Default admin is created when the app loads data from data/app-data.json.');
+    console.log('   Start the server and the admin user (adohealthicmr / Welcome@25) will be available.');
   }
+  process.exit(0);
 }
 
 createDefaultAdmin();

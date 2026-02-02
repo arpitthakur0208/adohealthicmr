@@ -205,6 +205,15 @@ export async function getAnswers(moduleId?: number, userId?: string): Promise<Ap
     if (userId) params.append('userId', userId);
     const url = `/api/answers${params.toString() ? '?' + params.toString() : ''}`;
     const response = await fetch(url);
+    
+    // Handle 401 errors gracefully (user not authenticated)
+    if (response.status === 401) {
+      return {
+        success: false,
+        error: 'Authentication required',
+      };
+    }
+    
     return handleResponse<{ answers: any[] }>(response);
   } catch (error) {
     return {

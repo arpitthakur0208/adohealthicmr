@@ -1,71 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/backend/lib/db';
-import Module from '@/backend/models/Module';
-import Question from '@/backend/models/Question';
+import { replaceModulesAndQuestions } from '@/lib/store';
 import { requireAdmin } from '@/backend/lib/auth';
 
-// Force dynamic rendering for API routes
 export const dynamic = 'force-dynamic';
 
-// This route maintains backward compatibility with the old file-based system
-// It saves data from the old JSON format to the database
-export const POST = requireAdmin(async (request: NextRequest, user) => {
+export const POST = requireAdmin(async (request: NextRequest) => {
   try {
-
     const data = await request.json();
-
-    // Validate data structure
     if (!data || typeof data !== 'object') {
-      return NextResponse.json(
-        { error: 'Invalid data format' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid data format' }, { status: 400 });
     }
-
-    // Save modules
-    if (data.modules && Array.isArray(data.modules)) {
-      for (const moduleData of data.modules) {
-        await Module.findOneAndUpdate(
-          { id: moduleData.id },
-          {
-            id: moduleData.id,
-            title: moduleData.title,
-            description: moduleData.description,
-            color: moduleData.color,
-          },
-          { upsert: true, new: true }
-        );
-      }
-    }
-
-    // Save questions
+    const modules = Array.isArray(data.modules) ? data.modules : [];
+    const questions: Record<string, Array<{ id: number; question: string; options: string[]; correctAnswer?: number }>> = {};
     if (data.questions && typeof data.questions === 'object') {
-      for (const [moduleIdStr, questions] of Object.entries(data.questions)) {
-        const moduleId = parseInt(moduleIdStr);
-        if (!isNaN(moduleId) && Array.isArray(questions)) {
-          for (const questionData of questions) {
-            await Question.findOneAndUpdate(
-              { id: questionData.id, moduleId },
-              {
-                id: questionData.id,
-                moduleId,
-                question: questionData.question,
-                options: questionData.options,
-                correctAnswer: questionData.correctAnswer,
-              },
-              { upsert: true, new: true }
-            );
-          }
+      for (const [moduleIdStr, list] of Object.entries(data.questions)) {
+        if (Array.isArray(list)) {
+          questions[moduleIdStr] = list.map((q: any) => ({
+            id: q.id,
+            question: q.question,
+            options: q.options || [],
+            correctAnswer: q.correctAnswer,
+          }));
         }
       }
     }
-
-    // Note: Answers are not migrated here as they're user-specific
-    // Use the /api/answers endpoint for user answers
-
+    replaceModulesAndQuestions(
+      modules.map((m: any) => ({ id: m.id, title: m.title, description: m.description, color: m.color })),
+      questions
+    );
     return NextResponse.json({
       success: true,
-      message: 'Data saved successfully to database',
+      message: 'Data saved successfully',
       savedAt: new Date().toISOString(),
     });
   } catch (error) {

@@ -14,10 +14,39 @@ let MONGODB_URI = 'mongodb://localhost:27017/adohealthicmr';
 
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf8');
-  const mongoMatch = envContent.match(/MONGODB_URI=(.+)/);
-  if (mongoMatch) {
-    MONGODB_URI = mongoMatch[1].trim();
+  // Find the first uncommented MONGODB_URI line
+  const lines = envContent.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Skip commented lines and empty lines
+    if (trimmed && !trimmed.startsWith('#') && trimmed.startsWith('MONGODB_URI=')) {
+      const mongoMatch = trimmed.match(/MONGODB_URI=(.+)/);
+      if (mongoMatch) {
+        MONGODB_URI = mongoMatch[1].trim();
+        break; // Use the first uncommented line
+      }
+    }
   }
+}
+
+// Check for placeholder values
+if (MONGODB_URI.includes('xxxxx') || MONGODB_URI.includes('<username>') || MONGODB_URI.includes('<password>') || MONGODB_URI.includes('<dbname>')) {
+  console.error('❌ ERROR: Connection string contains placeholder values!');
+  console.error('📍 Current connection string:', MONGODB_URI.replace(/\/\/.*@/, '//***:***@'));
+  console.error('\n💡 SOLUTION:');
+  console.error('   Your MONGODB_URI in .env.local has placeholder values (xxxxx, <username>, etc.)');
+  console.error('   You need to replace them with your actual MongoDB Atlas credentials.\n');
+  console.error('   Steps to get your connection string:');
+  console.error('   1. Go to https://cloud.mongodb.com/');
+  console.error('   2. Login to MongoDB Atlas');
+  console.error('   3. Go to Clusters → Click "Connect" on your cluster');
+  console.error('   4. Choose "Connect your application"');
+  console.error('   5. Copy the connection string');
+  console.error('   6. Replace <password> with your database password');
+  console.error('   7. Replace <dbname> with "adohealthicmr" (or your database name)');
+  console.error('   8. Update .env.local with the complete connection string\n');
+  console.error('   Or run: npm run setup-mongodb\n');
+  process.exit(1);
 }
 
 const mongoose = require('mongoose');
@@ -52,6 +81,23 @@ mongoose.connect(MONGODB_URI, {
       console.log('\n💡 SOLUTION:');
       console.log('   Your IP is not whitelisted in MongoDB Atlas.');
       console.log('   Go to Network Access → Add IP Address → Allow from anywhere');
+    } else if (error.message.includes('ENOTFOUND') || error.message.includes('querySrv')) {
+      console.log('\n💡 SOLUTION:');
+      console.log('   DNS/SRV lookup failed. Possible causes:');
+      console.log('   1. Connection string has placeholder values (xxxxx, cluster0.xxxxx)');
+      console.log('   2. Network/firewall blocking SRV queries');
+      console.log('   3. Invalid cluster address\n');
+      console.log('   Fix options:');
+      console.log('   Option A: Get correct connection string from MongoDB Atlas');
+      console.log('      - Go to Clusters → Connect → Connect your application');
+      console.log('      - Copy the connection string (should NOT have xxxxx)');
+      console.log('      - Replace <password> and <dbname> with actual values');
+      console.log('      - Update .env.local\n');
+      console.log('   Option B: Use non-SRV connection (if SRV fails)');
+      console.log('      - Go to Clusters → Connect → Drivers');
+      console.log('      - Choose "Standard connection string" (not SRV)');
+      console.log('      - Copy and use that instead\n');
+      console.log('   Run: npm run setup-mongodb (for interactive setup)');
     }
     
     process.exit(1);

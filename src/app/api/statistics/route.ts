@@ -1,102 +1,78 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/backend/lib/db';
-import Module from '@/backend/models/Module';
-import Question from '@/backend/models/Question';
-import Answer from '@/backend/models/Answer';
-import User from '@/backend/models/User';
-import Video from '@/backend/models/Video';
+import {
+  getModules,
+  getQuestions,
+  getAnswers,
+  getAllAnswers,
+  getVideos,
+  getStoreStatus,
+} from '@/lib/store';
 import { requireAuth } from '@/backend/lib/auth';
 
-// Force dynamic rendering for API routes
 export const dynamic = 'force-dynamic';
 
-// GET statistics (Authenticated users)
 export const GET = requireAuth(async (request: NextRequest, user) => {
   try {
-    await connectDB();
-
     const { searchParams } = new URL(request.url);
-    const moduleId = searchParams.get('moduleId');
+    const moduleIdParam = searchParams.get('moduleId');
+    const moduleIdNum = moduleIdParam ? parseInt(moduleIdParam) : undefined;
+    const moduleFilter = moduleIdNum != null && !isNaN(moduleIdNum) ? moduleIdNum : undefined;
 
-    let moduleFilter: any = {};
-    if (moduleId) {
-      const moduleIdNum = parseInt(moduleId);
-      if (!isNaN(moduleIdNum)) {
-        moduleFilter.moduleId = moduleIdNum;
-      }
-    }
+    const status = getStoreStatus();
+    const totalModules = status.modules;
+    const totalQuestions = status.questions;
+    const totalUsers = user.role === 'admin' ? status.users : undefined;
+    const totalVideos = getVideos(moduleFilter).length;
 
-    // Get counts
-    const totalModules = await Module.countDocuments();
-    const totalQuestions = await Question.countDocuments(moduleFilter);
-    const totalUsers = await User.countDocuments();
-    const totalVideos = await Video.countDocuments(moduleFilter);
-
-    // Get answer statistics
-    let answerStats: any = {};
+    let answerStats: {
+      totalAnswers: number;
+      correctAnswers: number;
+      incorrectAnswers: number;
+      accuracyRate: string;
+      uniqueUsersAnswered?: number;
+    };
     if (user.role === 'admin') {
-      // Admins can see all answer statistics
-      const totalAnswers = await Answer.countDocuments(moduleFilter);
-      const correctAnswers = await Answer.countDocuments({ ...moduleFilter, isCorrect: true });
-      const uniqueUsersAnswered = await Answer.distinct('userId', moduleFilter);
-      
+      const allAnswersList = getAllAnswers(moduleFilter);
+      const totalAnswers = allAnswersList.length;
+      const correctAnswers = allAnswersList.filter((a) => a.isCorrect).length;
+      const uniqueUsersAnswered = new Set(allAnswersList.map((a) => a.userId)).size;
       answerStats = {
         totalAnswers,
         correctAnswers,
         incorrectAnswers: totalAnswers - correctAnswers,
-        accuracyRate: totalAnswers > 0 ? ((correctAnswers / totalAnswers) * 100).toFixed(2) : 0,
-        uniqueUsersAnswered: uniqueUsersAnswered.length,
+        accuracyRate: totalAnswers > 0 ? ((correctAnswers / totalAnswers) * 100).toFixed(2) : '0',
+        uniqueUsersAnswered,
       };
     } else {
-      // Regular users can only see their own statistics
-      const userAnswers = await Answer.find({ userId: user.userId, ...moduleFilter });
+      const userAnswers = getAnswers(user.userId, moduleFilter);
       const totalAnswers = userAnswers.length;
-      const correctAnswers = userAnswers.filter(a => a.isCorrect).length;
-      
+      const correctAnswers = userAnswers.filter((a) => a.isCorrect).length;
       answerStats = {
         totalAnswers,
         correctAnswers,
         incorrectAnswers: totalAnswers - correctAnswers,
-        accuracyRate: totalAnswers > 0 ? ((correctAnswers / totalAnswers) * 100).toFixed(2) : 0,
+        accuracyRate: totalAnswers > 0 ? ((correctAnswers / totalAnswers) * 100).toFixed(2) : '0',
       };
     }
 
-    // Get module-specific statistics
-    const moduleStats = await Module.find().sort({ id: 1 });
-    const moduleDetails = await Promise.all(
-      moduleStats.map(async (module) => {
-        const questionsCount = await Question.countDocuments({ moduleId: module.id });
-        const videosCount = await Video.countDocuments({ moduleId: module.id });
-        
-        let moduleAnswerStats: any = {};
-        if (user.role === 'admin') {
-          const moduleAnswers = await Answer.countDocuments({ moduleId: module.id });
-          const moduleCorrectAnswers = await Answer.countDocuments({ moduleId: module.id, isCorrect: true });
-          moduleAnswerStats = {
-            totalAnswers: moduleAnswers,
-            correctAnswers: moduleCorrectAnswers,
-            accuracyRate: moduleAnswers > 0 ? ((moduleCorrectAnswers / moduleAnswers) * 100).toFixed(2) : 0,
-          };
-        } else {
-          const userModuleAnswers = await Answer.find({ userId: user.userId, moduleId: module.id });
-          const moduleAnswers = userModuleAnswers.length;
-          const moduleCorrectAnswers = userModuleAnswers.filter(a => a.isCorrect).length;
-          moduleAnswerStats = {
-            totalAnswers: moduleAnswers,
-            correctAnswers: moduleCorrectAnswers,
-            accuracyRate: moduleAnswers > 0 ? ((moduleCorrectAnswers / moduleAnswers) * 100).toFixed(2) : 0,
-          };
-        }
-
-        return {
-          moduleId: module.id,
-          moduleTitle: module.title,
-          questionsCount,
-          videosCount,
-          ...moduleAnswerStats,
-        };
-      })
-    );
+    const moduleStats = getModules();
+    const moduleDetails = moduleStats.map((module) => {
+      const questionsCount = getQuestions(module.id).length;
+      const videosCount = getVideos(module.id).length;
+      const moduleAnswers =
+        user.role === 'admin' ? getAllAnswers(module.id) : getAnswers(user.userId, module.id);
+      const totalAnswers = moduleAnswers.length;
+      const correctAnswers = moduleAnswers.filter((a) => a.isCorrect).length;
+      return {
+        moduleId: module.id,
+        moduleTitle: module.title,
+        questionsCount,
+        videosCount,
+        totalAnswers,
+        correctAnswers,
+        accuracyRate: totalAnswers > 0 ? ((correctAnswers / totalAnswers) * 100).toFixed(2) : '0',
+      };
+    });
 
     return NextResponse.json({
       success: true,
@@ -104,7 +80,7 @@ export const GET = requireAuth(async (request: NextRequest, user) => {
         overview: {
           totalModules,
           totalQuestions,
-          totalUsers: user.role === 'admin' ? totalUsers : undefined,
+          totalUsers,
           totalVideos,
         },
         answers: answerStats,

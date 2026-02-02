@@ -275,53 +275,67 @@ export default function Home() {
 
         // Load answers from API (only if user is logged in)
         if (isUserLoggedIn) {
-          const answersResponse = await getAnswers();
-          if (answersResponse.success && answersResponse.data?.answers) {
-            const apiAnswers: { [moduleId: number]: { [questionId: number]: string } } = {};
-            answersResponse.data.answers.forEach((a: any) => {
-              if (!apiAnswers[a.moduleId]) {
-                apiAnswers[a.moduleId] = {};
-              }
-              apiAnswers[a.moduleId][a.questionId] = a.answer;
-            });
-            setSavedAnswers(apiAnswers);
+          try {
+            const answersResponse = await getAnswers();
+            if (answersResponse.success && answersResponse.data?.answers) {
+              const apiAnswers: { [moduleId: number]: { [questionId: number]: string } } = {};
+              answersResponse.data.answers.forEach((a: any) => {
+                if (!apiAnswers[a.moduleId]) {
+                  apiAnswers[a.moduleId] = {};
+                }
+                apiAnswers[a.moduleId][a.questionId] = a.answer;
+              });
+              setSavedAnswers(apiAnswers);
+            }
+          } catch (error) {
+            // Silently handle errors for answers (expected if not authenticated or DB unavailable)
+            console.debug('Could not load answers:', error);
           }
         }
 
         // Load videos from API (only if user is logged in)
         if (isUserLoggedIn || isAdmin) {
-          const videosResponse = await getVideos();
-          if (videosResponse.success && videosResponse.data?.videos) {
-            const apiVideos: {
-              [moduleId: number]: {
-                english: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
-                punjabi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
-                hindi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
-                activity: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
-              };
-            } = {};
-            
-            videosResponse.data.videos.forEach((v: VideoData) => {
-              if (!apiVideos[v.moduleId]) {
-                apiVideos[v.moduleId] = {
-                  english: [],
-                  punjabi: [],
-                  hindi: [],
-                  activity: [],
+          try {
+            const videosResponse = await getVideos();
+            if (videosResponse.success && videosResponse.data?.videos) {
+              const apiVideos: {
+                [moduleId: number]: {
+                  english: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+                  punjabi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+                  hindi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+                  activity: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
                 };
-              }
-              apiVideos[v.moduleId][v.videoType].push({
-                id: v.videoId,
-                preview: v.preview,
-                fileName: v.fileName,
-                fileSize: v.fileSize,
+              } = {};
+              
+              videosResponse.data.videos.forEach((v: VideoData) => {
+                if (!apiVideos[v.moduleId]) {
+                  apiVideos[v.moduleId] = {
+                    english: [],
+                    punjabi: [],
+                    hindi: [],
+                    activity: [],
+                  };
+                }
+                apiVideos[v.moduleId][v.videoType].push({
+                  id: v.videoId,
+                  preview: v.preview,
+                  fileName: v.fileName,
+                  fileSize: v.fileSize,
+                });
               });
-            });
-            setVideos(apiVideos);
+              setVideos(apiVideos);
+            }
+          } catch (error) {
+            // Silently handle errors for videos (expected if not authenticated or DB unavailable)
+            console.debug('Could not load videos:', error);
           }
         }
       } catch (error) {
-        console.error('Error loading data from APIs:', error);
+        // Only log unexpected errors
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (!errorMessage.includes('Authentication') && !errorMessage.includes('Database')) {
+          console.error('Error loading data from APIs:', error);
+        }
         // Fallback to defaults on error
         setModules(defaultModules);
       }
@@ -442,7 +456,20 @@ export default function Home() {
         }),
       });
 
-      const data = await response.json();
+      // Check if response is ok before parsing JSON
+      let data;
+      try {
+        const text = await response.text();
+        if (!text) {
+          throw new Error('Empty response from server');
+        }
+        data = JSON.parse(text);
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+        setLoginError(`Server error (${response.status}): ${response.statusText}. Please check server logs.`);
+        setIsRequestingOTP(false);
+        return;
+      }
 
       if (response.ok && data.success) {
         setLoginStep('otp');
@@ -468,7 +495,12 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Request OTP error:', error);
-      setLoginError("An error occurred while requesting OTP. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('Failed to execute') || errorMessage.includes('JSON')) {
+        setLoginError("Server returned invalid response. Please check if the server is running and try again.");
+      } else {
+        setLoginError("An error occurred while requesting OTP. Please try again.");
+      }
     } finally {
       setIsRequestingOTP(false);
     }

@@ -1,148 +1,103 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/backend/lib/db';
-import Module from '@/backend/models/Module';
-import Question from '@/backend/models/Question';
-import Video from '@/backend/models/Video';
+import {
+  getModules,
+  createModule,
+  deleteModule,
+  getQuestions,
+  createQuestion,
+  updateQuestion,
+  deleteQuestion,
+  getVideos,
+  createVideo,
+  deleteVideo,
+} from '@/lib/store';
 import { requireAdmin } from '@/backend/lib/auth';
 
-// Force dynamic rendering for API routes
 export const dynamic = 'force-dynamic';
 
-/**
- * Bulk operations API (Admin only)
- * Supports bulk create, update, and delete operations
- */
 export const POST = requireAdmin(async (request: NextRequest, user) => {
   try {
-    await connectDB();
-
     const { operation, resource, data } = await request.json();
-
     if (!operation || !resource) {
-      return NextResponse.json(
-        { error: 'Operation and resource are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Operation and resource are required' }, { status: 400 });
     }
-
-    let result: any = {};
-
+    let result: Record<string, unknown> = {};
     switch (resource) {
       case 'modules':
         if (operation === 'create' && Array.isArray(data)) {
-          const createdModules = await Promise.all(
-            data.map((module: any) =>
-              Module.findOneAndUpdate(
-                { id: module.id },
-                {
-                  id: module.id,
-                  title: module.title,
-                  description: module.description,
-                  color: module.color,
-                },
-                { upsert: true, new: true }
-              )
-            )
-          );
-          result = { created: createdModules.length, modules: createdModules };
+          const created: unknown[] = [];
+          for (const module of data) {
+            try {
+              created.push(createModule({ id: module.id, title: module.title, description: module.description, color: module.color }));
+            } catch {
+              // skip duplicate
+            }
+          }
+          result = { created: created.length, modules: created };
         } else if (operation === 'delete' && Array.isArray(data)) {
-          const deleted = await Module.deleteMany({ id: { $in: data } });
-          result = { deleted: deleted.deletedCount };
+          let deleted = 0;
+          for (const id of data) {
+            if (deleteModule(id)) deleted++;
+          }
+          result = { deleted };
         }
         break;
-
       case 'questions':
         if (operation === 'create' && Array.isArray(data)) {
-          const createdQuestions = await Promise.all(
-            data.map((question: any) =>
-              Question.findOneAndUpdate(
-                { id: question.id, moduleId: question.moduleId },
-                {
-                  id: question.id,
-                  moduleId: question.moduleId,
-                  question: question.question,
-                  options: question.options,
-                  correctAnswer: question.correctAnswer,
-                },
-                { upsert: true, new: true }
-              )
-            )
-          );
-          result = { created: createdQuestions.length, questions: createdQuestions };
+          const created: unknown[] = [];
+          for (const q of data) {
+            try {
+              created.push(createQuestion({ id: q.id, moduleId: q.moduleId, question: q.question, options: q.options, correctAnswer: q.correctAnswer }));
+            } catch {
+              // skip duplicate
+            }
+          }
+          result = { created: created.length, questions: created };
         } else if (operation === 'update' && Array.isArray(data)) {
-          const updatedQuestions = await Promise.all(
-            data.map((question: any) =>
-              Question.findOneAndUpdate(
-                { id: question.id, moduleId: question.moduleId },
-                {
-                  question: question.question,
-                  options: question.options,
-                  correctAnswer: question.correctAnswer,
-                },
-                { new: true }
-              )
-            )
-          );
-          result = { updated: updatedQuestions.length, questions: updatedQuestions };
+          let updated = 0;
+          for (const q of data) {
+            if (updateQuestion(q.id, q.moduleId, { question: q.question, options: q.options, correctAnswer: q.correctAnswer })) updated++;
+          }
+          result = { updated };
         } else if (operation === 'delete' && Array.isArray(data)) {
-          // data should be array of { id, moduleId }
-          const deleted = await Promise.all(
-            data.map((item: any) =>
-              Question.deleteOne({ id: item.id, moduleId: item.moduleId })
-            )
-          );
-          result = { deleted: deleted.reduce((sum, d) => sum + (d.deletedCount || 0), 0) };
+          let deleted = 0;
+          for (const item of data) {
+            if (deleteQuestion(item.id, item.moduleId)) deleted++;
+          }
+          result = { deleted };
         }
         break;
-
       case 'videos':
         if (operation === 'create' && Array.isArray(data)) {
-          const createdVideos = await Promise.all(
-            data.map((video: any) =>
-              Video.findOneAndUpdate(
-                { moduleId: video.moduleId, videoType: video.videoType, videoId: video.videoId },
-                {
-                  moduleId: video.moduleId,
-                  videoType: video.videoType,
-                  videoId: video.videoId,
-                  preview: video.preview,
-                  fileName: video.fileName,
-                  fileSize: video.fileSize,
-                  fileUrl: video.fileUrl,
-                  uploadedBy: user.userId,
-                },
-                { upsert: true, new: true }
-              )
-            )
-          );
-          result = { created: createdVideos.length, videos: createdVideos };
+          const created: unknown[] = [];
+          for (const video of data) {
+            created.push(createVideo({
+              moduleId: video.moduleId,
+              videoType: video.videoType,
+              videoId: video.videoId,
+              preview: video.preview,
+              fileName: video.fileName,
+              fileSize: video.fileSize,
+              fileUrl: video.fileUrl,
+              uploadedBy: user.userId,
+            }));
+          }
+          result = { created: created.length, videos: created };
         } else if (operation === 'delete' && Array.isArray(data)) {
-          // data should be array of { moduleId, videoType, videoId }
-          const deleted = await Promise.all(
-            data.map((item: any) =>
-              Video.deleteOne({
-                moduleId: item.moduleId,
-                videoType: item.videoType,
-                videoId: item.videoId,
-              })
-            )
-          );
-          result = { deleted: deleted.reduce((sum, d) => sum + (d.deletedCount || 0), 0) };
+          let deleted = 0;
+          for (const item of data) {
+            if (deleteVideo(item.moduleId, item.videoType, item.videoId)) deleted++;
+          }
+          result = { deleted };
         }
         break;
-
       default:
         return NextResponse.json(
           { error: `Invalid resource: ${resource}. Supported: modules, questions, videos` },
           { status: 400 }
         );
     }
-
-    return NextResponse.json({
-      success: true,
-      message: `Bulk ${operation} operation completed`,
-      result,
-    });
+    return NextResponse.json({ success: true, message: `Bulk ${operation} operation completed`, result });
   } catch (error) {
     console.error('Error performing bulk operation:', error);
     return NextResponse.json(

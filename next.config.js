@@ -28,7 +28,7 @@ const nextConfig = {
   },
   // Ensure server-only modules are properly handled
   experimental: {
-    serverComponentsExternalPackages: ['jsonwebtoken', 'bcryptjs', 'mongoose'],
+    serverComponentsExternalPackages: ['jsonwebtoken', 'bcryptjs'],
   },
 }
 
