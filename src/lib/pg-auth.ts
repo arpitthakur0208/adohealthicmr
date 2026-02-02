@@ -95,6 +95,30 @@ export async function getUserById(id: string): Promise<UserRecord | undefined> {
   return row ? toUser(row) : undefined;
 }
 
+export async function getUserByEmail(email: string): Promise<UserRecord | undefined> {
+  if (!hasDatabase()) return undefined;
+  const key = email.trim().toLowerCase();
+  const row = await queryOne<DbUser>('SELECT * FROM users WHERE LOWER(email) = $1', [key]);
+  return row ? toUser(row) : undefined;
+}
+
+export async function verifyUserPasswordByEmail(email: string, password: string): Promise<boolean> {
+  const user = await getUserByEmail(email);
+  if (!user) return false;
+  return bcrypt.compareSync(password, user.passwordHash);
+}
+
+/** Create a user with email + password (username derived from email). For simple user signup. */
+export async function createUserByEmail(email: string, password: string): Promise<UserRecord> {
+  if (!hasDatabase()) throw new Error('Database not configured');
+  await ensureAuthSchema();
+  const key = email.trim().toLowerCase();
+  const slug = key.replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  const id = slug ? 'user-' + slug : 'user-' + Date.now();
+  const username = key; // use email as username for uniqueness
+  return createUser({ id, username, email: key, password, role: 'user' });
+}
+
 export async function getAllUsers(opts?: { role?: 'user' | 'admin'; search?: string }): Promise<UserRecord[]> {
   if (!hasDatabase()) return [];
   let sql = 'SELECT * FROM users WHERE 1=1';

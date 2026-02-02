@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { hasDatabase } from '@/lib/db';
 import { getAllUsers } from '@/lib/pg-auth';
+import { getFallbackUsers } from '@/lib/fallback-users';
 import { requireAdmin } from '@/backend/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = requireAdmin(async (request: NextRequest, user) => {
+export const GET = requireAdmin(async (request: NextRequest) => {
   try {
+    if (!hasDatabase()) {
+      const users = await getFallbackUsers();
+      return NextResponse.json({ success: true, users, count: users.length });
+    }
     const { searchParams } = new URL(request.url);
     const role = searchParams.get('role') as 'user' | 'admin' | null;
     const search = searchParams.get('search');

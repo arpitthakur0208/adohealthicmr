@@ -347,14 +347,20 @@ export default function Home() {
 
   const [showUserLogin, setShowUserLogin] = useState(false);
   const [loginMode, setLoginMode] = useState<'user' | 'admin'>('user');
-  const [loginUsername, setLoginUsername] = useState("");
+  const [userPopupView, setUserPopupView] = useState<'login' | 'create'>('login');
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [loginOTP, setLoginOTP] = useState("");
-  const [loginStep, setLoginStep] = useState<'email' | 'otp'>('email');
   const [loginError, setLoginError] = useState("");
   const [isLoginLoading, setIsLoginLoading] = useState(false);
-  const [isRequestingOTP, setIsRequestingOTP] = useState(false);
+  const [createEmail, setCreateEmail] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
+  const [createConfirmPassword, setCreateConfirmPassword] = useState("");
+  const [createError, setCreateError] = useState("");
+  const [isCreateLoading, setIsCreateLoading] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [showCreateConfirmPassword, setShowCreateConfirmPassword] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -418,146 +424,101 @@ export default function Home() {
     setEditDescription("");
   };
 
-  const handleRequestOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsRequestingOTP(true);
-    setLoginError("");
-
-    const trimmedEmail = loginEmail.trim();
-    const trimmedUsername = loginUsername.trim();
-
-    if (!trimmedEmail && !trimmedUsername) {
-      setLoginError("Please enter your username and email address.");
-      setIsRequestingOTP(false);
-      return;
-    }
-
-    if (!trimmedEmail) {
-      setLoginError("Please enter your email address.");
-      setIsRequestingOTP(false);
-      return;
-    }
-
-    if (!trimmedUsername) {
-      setLoginError("Please enter your username.");
-      setIsRequestingOTP(false);
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/auth/request-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: trimmedEmail || undefined,
-          username: trimmedUsername || undefined,
-        }),
-      });
-
-      // Check if response is ok before parsing JSON
-      let data;
-      try {
-        const text = await response.text();
-        if (!text) {
-          throw new Error('Empty response from server');
-        }
-        data = JSON.parse(text);
-      } catch (parseError) {
-        console.error('Failed to parse response:', parseError);
-        setLoginError(`Server error (${response.status}): ${response.statusText}. Please check server logs.`);
-        setIsRequestingOTP(false);
-        return;
-      }
-
-      if (response.ok && data.success) {
-        setLoginStep('otp');
-        setLoginError("");
-        
-        // In development, if email is not configured, show OTP in console and alert
-        if (data.debug && data.debug.otp) {
-          console.log('=== OTP CODE (Development Mode) ===');
-          console.log('Email:', trimmedEmail);
-          console.log('OTP:', data.debug.otp);
-          console.log('===================================');
-          alert(`OTP Code: ${data.debug.otp}\n\n⚠️ Email service is not configured!\n\n📧 To enable email sending:\n1. Go to https://web3forms.com\n2. Get your free access key\n3. Add WEB3FORMS_ACCESS_KEY=your_key to .env.local\n4. Restart the server (Ctrl+C then npm run dev)\n\n💡 For now, use the OTP code shown above to login.`);
-        } else {
-          // Show helpful message with reminder to check server console
-          console.log('📧 OTP request processed. Please check:');
-          console.log('1. Your email inbox (and spam folder)');
-          console.log('2. Your SERVER console (terminal where npm run dev is running)');
-          console.log('   - Look for "OTP CODE" or "email sent successfully" messages');
-          console.log('   - If email service is not configured, the OTP will be shown there');
-        }
-      } else {
-        setLoginError(data.message || data.error || "Failed to send OTP. Please try again.");
-      }
-    } catch (error) {
-      console.error('Request OTP error:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('Failed to execute') || errorMessage.includes('JSON')) {
-        setLoginError("Server returned invalid response. Please check if the server is running and try again.");
-      } else {
-        setLoginError("An error occurred while requesting OTP. Please try again.");
-      }
-    } finally {
-      setIsRequestingOTP(false);
-    }
-  };
-
-  const handleVerifyOTP = async (e: React.FormEvent) => {
+  const handleUserLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoginLoading(true);
     setLoginError("");
 
-    const trimmedOTP = loginOTP.trim();
     const trimmedEmail = loginEmail.trim();
-    const trimmedUsername = loginUsername.trim();
-
-    if (!trimmedOTP) {
-      setLoginError("Please enter the OTP sent to your email.");
+    if (!trimmedEmail) {
+      setLoginError("Please enter your email.");
+      setIsLoginLoading(false);
+      return;
+    }
+    if (!loginPassword) {
+      setLoginError("Please enter your password.");
       setIsLoginLoading(false);
       return;
     }
 
     try {
-      const response = await fetch('/api/auth/verify-otp', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: trimmedEmail || undefined,
-          username: trimmedUsername || undefined,
-          otp: trimmedOTP,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail, password: loginPassword }),
       });
-
       const data = await response.json();
 
       if (response.ok && data.success) {
         setIsUserLoggedIn(true);
-        setUserName(data.user.username);
+        setUserName(data.user.username || data.user.email);
         setUserEmail(data.user.email || '');
         setUserRole(data.user.role);
         setIsAdmin(data.user.role === 'admin');
         setShowUserLogin(false);
-        setLoginUsername("");
         setLoginEmail("");
-        setLoginOTP("");
-        setLoginStep('email');
+        setLoginPassword("");
         setLoginError("");
       } else {
-        setLoginError(data.message || data.error || "Invalid OTP. Please try again.");
-        setLoginOTP("");
+        setLoginError(data.message || data.error || "Login failed. Please try again.");
       }
     } catch (error) {
-      console.error('Verify OTP error:', error);
-      setLoginError("An error occurred during OTP verification. Please try again.");
-      setLoginOTP("");
+      console.error('User login error:', error);
+      setLoginError("An error occurred during login. Please try again.");
     } finally {
       setIsLoginLoading(false);
+    }
+  };
+
+  const handleCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreateLoading(true);
+    setCreateError("");
+
+    const trimmedEmail = createEmail.trim();
+    if (!trimmedEmail) {
+      setCreateError("Please enter your email.");
+      setIsCreateLoading(false);
+      return;
+    }
+    if (!createPassword) {
+      setCreateError("Please set a password.");
+      setIsCreateLoading(false);
+      return;
+    }
+    if (createPassword !== createConfirmPassword) {
+      setCreateError("Password and confirm password do not match.");
+      setIsCreateLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail, password: createPassword }),
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setIsUserLoggedIn(true);
+        setUserName(data.user.username || data.user.email);
+        setUserEmail(data.user.email || '');
+        setUserRole(data.user.role);
+        setIsAdmin(data.user.role === 'admin');
+        setShowUserLogin(false);
+        setCreateEmail("");
+        setCreatePassword("");
+        setCreateConfirmPassword("");
+        setCreateError("");
+      } else {
+        setCreateError(data.message || data.error || "Could not create account. Email may already be registered.");
+      }
+    } catch (error) {
+      console.error('Create account error:', error);
+      setCreateError("An error occurred. Please try again.");
+    } finally {
+      setIsCreateLoading(false);
     }
   };
 
@@ -1413,12 +1374,14 @@ export default function Home() {
                 onClick={() => {
                   setShowUserLogin(false);
                   setLoginMode('user');
-                  setLoginUsername("");
+                  setUserPopupView('login');
                   setLoginEmail("");
-                  setLoginOTP("");
                   setLoginPassword("");
-                  setLoginStep('email');
                   setLoginError("");
+                  setCreateEmail("");
+                  setCreatePassword("");
+                  setCreateConfirmPassword("");
+                  setCreateError("");
                   setAdminPassword("");
                   setAdminLoginError("");
                 }}
@@ -1438,10 +1401,12 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     setLoginMode('user');
-                    setLoginStep('email');
-                    setLoginUsername("");
+                    setUserPopupView('login');
                     setLoginEmail("");
-                    setLoginOTP("");
+                    setLoginPassword("");
+                    setCreateEmail("");
+                    setCreatePassword("");
+                    setCreateConfirmPassword("");
                     setAdminPassword("");
                     setAdminLoginError("");
                   }}
@@ -1457,11 +1422,12 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     setLoginMode('admin');
-                    setLoginStep('email');
-                    setLoginUsername("");
+                    setUserPopupView('login');
                     setLoginEmail("");
-                    setLoginOTP("");
                     setLoginPassword("");
+                    setCreateEmail("");
+                    setCreatePassword("");
+                    setCreateConfirmPassword("");
                     setLoginError("");
                   }}
                   className={`flex-1 px-4 py-2 rounded-md font-semibold text-sm transition-colors ${
@@ -1475,137 +1441,198 @@ export default function Home() {
               </div>
             </div>
 
-            {/* User Login Form */}
-            {loginMode === 'user' && (
-              <>
-                {loginStep === 'email' ? (
-                  <form onSubmit={handleRequestOTP}>
-                    <div className="mb-4">
-                      <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
-                        Username <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={loginUsername}
-                        onChange={(e) => {
-                          setLoginUsername(e.target.value);
-                          setLoginError("");
-                        }}
-                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
-                        placeholder="Enter your username"
-                        autoFocus
-                        required
-                      />
-                    </div>
-                    <div className="mb-4">
-                      <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
-                        Email Address <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={loginEmail}
-                        onChange={(e) => {
-                          setLoginEmail(e.target.value);
-                          setLoginError("");
-                        }}
-                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
-                        placeholder="Enter your email address"
-                        required
-                      />
-                    </div>
-                    {loginError && (
-                      <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
-                        <p className="text-xs sm:text-sm text-red-300 font-medium">{loginError}</p>
-                      </div>
-                    )}
-                    <div className="flex gap-2 sm:gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowUserLogin(false);
-                          setLoginUsername("");
-                          setLoginEmail("");
-                          setLoginOTP("");
-                          setLoginStep('email');
-                          setLoginError("");
-                        }}
-                        className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isRequestingOTP}
-                        className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isRequestingOTP ? 'Sending OTP...' : 'Send OTP'}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <form onSubmit={handleVerifyOTP}>
-                    <div className="mb-4">
-                      <p className="text-xs sm:text-sm text-gray-300 mb-2">
-                        We've sent a 6-digit OTP to your email address. Please check your inbox (and spam folder) and enter the code below.
-                      </p>
-                      <p className="text-xs text-yellow-400 mb-2">
-                        💡 Tip: If you don't receive the email, check the server console (terminal) for the OTP code in development mode.
-                      </p>
-                      <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
-                        Enter OTP
-                      </label>
-                      <input
-                        type="text"
-                        value={loginOTP}
-                        onChange={(e) => {
-                          // Only allow digits and limit to 6 characters
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                          setLoginOTP(value);
-                          setLoginError("");
-                        }}
-                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white text-center text-2xl tracking-widest"
-                        placeholder="000000"
-                        autoFocus
-                        maxLength={6}
-                        required
-                      />
-                    </div>
-                    {loginError && (
-                      <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
-                        <p className="text-xs sm:text-sm text-red-300 font-medium">{loginError}</p>
-                      </div>
-                    )}
-                    <div className="flex gap-2 sm:gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLoginStep('email');
-                          setLoginOTP("");
-                          setLoginError("");
-                        }}
-                        className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
-                      >
-                        Back
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRequestOTP}
-                        disabled={isRequestingOTP}
-                        className="px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-500 text-gray-200 font-semibold rounded-lg hover:bg-slate-400 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isRequestingOTP ? 'Sending...' : 'Resend OTP'}
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isLoginLoading || loginOTP.length !== 6}
-                        className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isLoginLoading ? 'Verifying...' : 'Verify & Login'}
-                      </button>
-                    </div>
-                  </form>
+            {/* User: Login or Create account view */}
+            {loginMode === 'user' && userPopupView === 'login' && (
+              <form onSubmit={handleUserLogin}>
+                <div className="mb-4">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => { setLoginEmail(e.target.value); setLoginError(""); }}
+                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                    placeholder="Enter your email"
+                    autoFocus
+                    required
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showLoginPassword ? "text" : "password"}
+                      value={loginPassword}
+                      onChange={(e) => { setLoginPassword(e.target.value); setLoginError(""); }}
+                      className="w-full px-3 sm:px-4 py-2 pr-10 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                      placeholder="Enter your password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-yellow-400 transition-colors"
+                      aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                    >
+                      {showLoginPassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                {loginError && (
+                  <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
+                    <p className="text-xs sm:text-sm text-red-300 font-medium">{loginError}</p>
+                  </div>
                 )}
-              </>
+                <div className="flex flex-wrap gap-2 sm:gap-3 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUserLogin(false);
+                      setLoginEmail("");
+                      setLoginPassword("");
+                      setLoginError("");
+                    }}
+                    className="flex-1 min-w-[80px] px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoginLoading}
+                    className="flex-1 min-w-[80px] px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoginLoading ? 'Logging in...' : 'Login'}
+                  </button>
+                </div>
+                <p className="text-center text-xs sm:text-sm text-gray-400">
+                  Don&apos;t have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => { setUserPopupView('create'); setLoginError(""); }}
+                    className="text-yellow-400 hover:text-yellow-300 font-medium underline"
+                  >
+                    Create account
+                  </button>
+                </p>
+              </form>
+            )}
+
+            {/* Create account form: email, set password, confirm password, Create button */}
+            {loginMode === 'user' && userPopupView === 'create' && (
+              <form onSubmit={handleCreateAccount}>
+                <div className="mb-4">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={createEmail}
+                    onChange={(e) => { setCreateEmail(e.target.value); setCreateError(""); }}
+                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                    placeholder="Enter your email"
+                    autoFocus
+                    required
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                    Set password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCreatePassword ? "text" : "password"}
+                      value={createPassword}
+                      onChange={(e) => { setCreatePassword(e.target.value); setCreateError(""); }}
+                      className="w-full px-3 sm:px-4 py-2 pr-10 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                      placeholder="Set your password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCreatePassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-yellow-400 transition-colors"
+                      aria-label={showCreatePassword ? "Hide password" : "Show password"}
+                    >
+                      {showCreatePassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                    Confirm password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCreateConfirmPassword ? "text" : "password"}
+                      value={createConfirmPassword}
+                      onChange={(e) => { setCreateConfirmPassword(e.target.value); setCreateError(""); }}
+                      className="w-full px-3 sm:px-4 py-2 pr-10 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                      placeholder="Confirm your password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateConfirmPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-yellow-400 transition-colors"
+                      aria-label={showCreateConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showCreateConfirmPassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                {createError && (
+                  <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
+                    <p className="text-xs sm:text-sm text-red-300 font-medium">{createError}</p>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2 sm:gap-3 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUserLogin(false);
+                      setCreateEmail("");
+                      setCreatePassword("");
+                      setCreateConfirmPassword("");
+                      setCreateError("");
+                    }}
+                    className="flex-1 min-w-[80px] px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreateLoading}
+                    className="flex-1 min-w-[80px] px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isCreateLoading ? 'Creating...' : 'Create'}
+                  </button>
+                </div>
+                <p className="text-center text-xs sm:text-sm text-gray-400">
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => { setUserPopupView('login'); setCreateError(""); }}
+                    className="text-yellow-400 hover:text-yellow-300 font-medium underline"
+                  >
+                    Login
+                  </button>
+                </p>
+              </form>
             )}
 
             {/* Admin Login Form */}
@@ -1632,17 +1659,31 @@ export default function Home() {
                   <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
                     Password
                   </label>
-                  <input
-                    type="password"
-                    value={adminPassword}
-                    onChange={(e) => {
-                      setAdminPassword(e.target.value);
-                      setAdminLoginError("");
-                    }}
-                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
-                    placeholder="Enter admin password"
-                    required
-                  />
+                  <div className="relative">
+                    <input
+                      type={showAdminPassword ? "text" : "password"}
+                      value={adminPassword}
+                      onChange={(e) => {
+                        setAdminPassword(e.target.value);
+                        setAdminLoginError("");
+                      }}
+                      className="w-full px-3 sm:px-4 py-2 pr-10 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                      placeholder="Enter admin password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-yellow-400 transition-colors"
+                      aria-label={showAdminPassword ? "Hide password" : "Show password"}
+                    >
+                      {showAdminPassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
                 {adminLoginError && (
                   <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">

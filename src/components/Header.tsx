@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import icmrLogo from "../assets/Indian_Council_of_Medical_Research_Logo.svg.png";
 
 interface HeaderProps {
@@ -58,14 +59,27 @@ export default function Header({ isUserLoggedIn, isAdmin, userName, onLoginClick
                   title="View Login History"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
                   </svg>
-                  <span className="hidden sm:inline">Users</span>
+                  <span className="hidden sm:inline">Login History</span>
                 </button>
               </div>
+            )}
+            {isAdmin && (
+              <Link
+                href="/users"
+                className="px-2 py-1 sm:px-3 sm:py-1.5 bg-yellow-500 text-slate-900 text-xs font-semibold rounded-lg hover:bg-yellow-400 border-2 border-yellow-400 transition-all duration-200 flex items-center gap-1 sm:gap-2 relative z-10 shadow-md hover:shadow-lg"
+                title="View Users"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                <span className="hidden sm:inline">Users</span>
+              </Link>
             )}
           {isUserLoggedIn || isAdmin ? (
             <>

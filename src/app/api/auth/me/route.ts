@@ -28,6 +28,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Fallback users (no DB): return from JWT payload
+    if (!hasDatabase() && payload.role === 'user') {
+      return NextResponse.json({
+        success: true,
+        user: { id: payload.userId, username: payload.username, email: payload.username, role: payload.role },
+      });
+    }
+
     const user = await getUserByUsername(payload.username);
     if (!user) {
       // Token valid but user missing in DB (e.g. logged in as default admin without DB)
