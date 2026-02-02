@@ -46,9 +46,19 @@ export function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-const DEFAULT_ADMIN_USERNAME = 'adohealthicmr';
-const DEFAULT_ADMIN_PASSWORD = 'Welcome@25';
-const DEFAULT_ADMIN_EMAIL = 'admin@adohealthicmr.com';
+export const DEFAULT_ADMIN_USERNAME = 'adohealthicmr';
+export const DEFAULT_ADMIN_PASSWORD = 'Welcome@25';
+export const DEFAULT_ADMIN_EMAIL = 'admin@adohealthicmr.com';
+
+/** Default admin user object for use when DB is not configured (dev fallback). */
+export function getDefaultAdminUser(): { id: string; username: string; email: string; role: 'admin' } {
+  return { id: 'admin-1', username: DEFAULT_ADMIN_USERNAME, email: DEFAULT_ADMIN_EMAIL, role: 'admin' };
+}
+
+/** Check if username/password match the default admin (for no-DB fallback login). */
+export function verifyDefaultAdminCredentials(username: string, password: string): boolean {
+  return username.trim() === DEFAULT_ADMIN_USERNAME && password === DEFAULT_ADMIN_PASSWORD;
+}
 
 export async function ensureAuthSchema(): Promise<void> {
   if (!hasDatabase()) return;

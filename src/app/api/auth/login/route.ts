@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hasDatabase } from '@/lib/db';
-import { ensureAuthSchema, getUserByUsername, verifyUserPassword, addLoginHistory } from '@/lib/pg-auth';
+import {
+  ensureAuthSchema,
+  getDefaultAdminUser,
+  getUserByUsername,
+  verifyUserPassword,
+  verifyDefaultAdminCredentials,
+  addLoginHistory,
+} from '@/lib/pg-auth';
 import { generateToken } from '@/backend/lib/auth';
 import { getRolePermissions, isValidRole } from '@/backend/lib/roles';
 
@@ -13,7 +20,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Username and password are required', message: 'Please provide both username and password' }, { status: 400 });
     }
 
+    // When DB is not configured: allow default admin login (adohealthicmr / Welcome@25) for dev
     if (!hasDatabase()) {
+      if (verifyDefaultAdminCredentials(username, password)) {
+        const user = getDefaultAdminUser();
+        const token = generateToken({ userId: user.id, username: user.username, role: user.role });
+        const permissions = getRolePermissions('admin');
+        const response = NextResponse.json(
+          {
+            success: true,
+            message: 'Admin login successful',
+            user: { id: user.id, username: user.username, email: user.email, role: user.role },
+            permissions: { ...permissions, isAdmin: true, isUser: false },
+          },
+          { status: 200 }
+        );
+        response.cookies.set('token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 24 * 7,
+          path: '/',
+        });
+        return response;
+      }
       return NextResponse.json(
         { error: 'Database not configured', message: 'Set DATABASE_URL in .env and ensure PostgreSQL is running. Default admin: adohealthicmr / Welcome@25' },
         { status: 503 }

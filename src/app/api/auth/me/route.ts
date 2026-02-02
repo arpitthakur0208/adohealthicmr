@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/backend/lib/auth';
-import { getUserByUsername } from '@/lib/pg-auth';
+import { DEFAULT_ADMIN_USERNAME, getDefaultAdminUser, getUserByUsername } from '@/lib/pg-auth';
+import { hasDatabase } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,8 +20,20 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Default admin when DB not configured (dev fallback)
+    if (payload.username === DEFAULT_ADMIN_USERNAME && !hasDatabase()) {
+      return NextResponse.json({
+        success: true,
+        user: getDefaultAdminUser(),
+      });
+    }
+
     const user = await getUserByUsername(payload.username);
     if (!user) {
+      // Token valid but user missing in DB (e.g. logged in as default admin without DB)
+      if (payload.username === DEFAULT_ADMIN_USERNAME) {
+        return NextResponse.json({ success: true, user: getDefaultAdminUser() });
+      }
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
