@@ -28,7 +28,7 @@ export default function Header({ isUserLoggedIn, isAdmin, userName, onLoginClick
                   fill
                   className="object-contain"
                   priority
-                  style={{ filter: 'brightness(2) contrast(1.3) invert(0)' }}
+                  style={{ filter: 'brightness(3) contrast(1.4) invert(0)' }}
             />
               </div>
               <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold text-yellow-400 truncate">AdoHealth Initiative</h1>
