@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getQuestions, createQuestion } from '@/lib/store';
 import { requireAdmin } from '@/backend/lib/auth';
+import { isExpressEnabled, proxyToExpress } from '@/lib/express-proxy';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
+    if (isExpressEnabled()) {
+      const { searchParams } = new URL(request.url);
+      const q = searchParams.toString();
+      const res = await proxyToExpress(`/api/questions${q ? '?' + q : ''}`);
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
     const { searchParams } = new URL(request.url);
     const moduleId = searchParams.get('moduleId');
     const moduleIdNum = moduleId ? parseInt(moduleId) : undefined;
@@ -22,7 +30,13 @@ export async function GET(request: NextRequest) {
 
 export const POST = requireAdmin(async (request: NextRequest) => {
   try {
-    const { id, moduleId, question, options, correctAnswer } = await request.json();
+    const body = await request.json();
+    if (isExpressEnabled()) {
+      const res = await proxyToExpress('/api/questions', { method: 'POST', body: JSON.stringify(body) });
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
+    const { id, moduleId, question, options, correctAnswer } = body;
     if (!id || !moduleId || !question || !options || !Array.isArray(options)) {
       return NextResponse.json(
         { error: 'All fields (id, moduleId, question, options) are required' },

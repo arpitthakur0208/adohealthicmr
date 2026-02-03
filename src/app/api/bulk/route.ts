@@ -1,26 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getModules,
   createModule,
   deleteModule,
-  getQuestions,
   createQuestion,
   updateQuestion,
   deleteQuestion,
-  getVideos,
   createVideo,
   deleteVideo,
 } from '@/lib/store';
 import { requireAdmin } from '@/backend/lib/auth';
+import { isExpressEnabled, proxyToExpress } from '@/lib/express-proxy';
 
 export const dynamic = 'force-dynamic';
 
 export const POST = requireAdmin(async (request: NextRequest, user) => {
   try {
-    const { operation, resource, data } = await request.json();
+    const body = await request.json();
+    const { operation, resource, data } = body;
+
+    if (isExpressEnabled()) {
+      const res = await proxyToExpress('/api/bulk', {
+        method: 'POST',
+        body: JSON.stringify({ ...body, userId: user.userId }),
+      });
+      const result = await res.json();
+      return NextResponse.json(result, { status: res.status });
+    }
     if (!operation || !resource) {
       return NextResponse.json({ error: 'Operation and resource are required' }, { status: 400 });
     }
+
     let result: Record<string, unknown> = {};
     switch (resource) {
       case 'modules':

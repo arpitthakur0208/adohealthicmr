@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { replaceModulesAndQuestions } from '@/lib/store';
 import { requireAdmin } from '@/backend/lib/auth';
+import { isExpressEnabled, proxyToExpress } from '@/lib/express-proxy';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,14 @@ export const POST = requireAdmin(async (request: NextRequest) => {
     const data = await request.json();
     if (!data || typeof data !== 'object') {
       return NextResponse.json({ error: 'Invalid data format' }, { status: 400 });
+    }
+    if (isExpressEnabled()) {
+      const res = await proxyToExpress('/api/data/save', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      const result = await res.json();
+      return NextResponse.json(result, { status: res.status });
     }
     const modules = Array.isArray(data.modules) ? data.modules : [];
     const questions: Record<string, Array<{ id: number; question: string; options: string[]; correctAnswer?: number }>> = {};

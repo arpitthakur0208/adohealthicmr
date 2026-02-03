@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getModuleById, updateModule, deleteModule } from '@/lib/store';
 import { requireAdmin, getCurrentUser } from '@/backend/lib/auth';
+import { isExpressEnabled, proxyToExpress } from '@/lib/express-proxy';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,13 @@ export async function GET(
 ) {
   try {
     const resolvedParams = params instanceof Promise ? await params : params;
-    const moduleId = parseInt(resolvedParams.id);
+    const id = resolvedParams.id;
+    if (isExpressEnabled()) {
+      const res = await proxyToExpress(`/api/modules/${id}`);
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
+    const moduleId = parseInt(id);
     if (isNaN(moduleId)) {
       return NextResponse.json({ error: 'Invalid module ID' }, { status: 400 });
     }
@@ -41,7 +48,14 @@ export async function PUT(
   }
   try {
     const resolvedParams = params instanceof Promise ? await params : params;
-    const moduleId = parseInt(resolvedParams.id);
+    const id = resolvedParams.id;
+    if (isExpressEnabled()) {
+      const body = await request.json();
+      const res = await proxyToExpress(`/api/modules/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
+    const moduleId = parseInt(id);
     if (isNaN(moduleId)) {
       return NextResponse.json({ error: 'Invalid module ID' }, { status: 400 });
     }
@@ -77,7 +91,13 @@ export async function DELETE(
   }
   try {
     const resolvedParams = params instanceof Promise ? await params : params;
-    const moduleId = parseInt(resolvedParams.id);
+    const id = resolvedParams.id;
+    if (isExpressEnabled()) {
+      const res = await proxyToExpress(`/api/modules/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
+    const moduleId = parseInt(id);
     if (isNaN(moduleId)) {
       return NextResponse.json({ error: 'Invalid module ID' }, { status: 400 });
     }

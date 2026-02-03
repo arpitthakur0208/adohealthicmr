@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import icmrLogo from "../assets/Indian_Council_of_Medical_Research_Logo.svg.png";
 
 interface HeaderProps {
@@ -10,10 +11,9 @@ interface HeaderProps {
   onLoginClick: () => void;
   onLogout: () => void;
   onModulesClick?: () => void;
-  onLoginHistoryClick?: () => void;
 }
 
-export default function Header({ isUserLoggedIn, isAdmin, userName, onLoginClick, onLogout, onModulesClick, onLoginHistoryClick }: HeaderProps) {
+export default function Header({ isUserLoggedIn, isAdmin, userName, onLoginClick, onLogout, onModulesClick }: HeaderProps) {
   return (
     <header className="sticky top-0 left-0 right-0 z-[100] bg-blue-800 backdrop-blur-md border-b-2 border-yellow-500 shadow-lg">
       <div className="max-w-8xl mx-auto px-2 sm:px-4 md:px-8 py-2">
@@ -50,22 +50,20 @@ export default function Header({ isUserLoggedIn, isAdmin, userName, onLoginClick
                 </button>
               </div>
             )}
-            {isAdmin && onLoginHistoryClick && (
-              <div className="relative">
-                <button
-                  onClick={onLoginHistoryClick}
-                  className="px-2 py-1 sm:px-3 sm:py-1.5 bg-yellow-500 text-slate-900 text-xs font-semibold rounded-lg hover:bg-yellow-400 border-2 border-yellow-400 transition-all duration-200 flex items-center gap-1 sm:gap-2 relative z-10 shadow-md hover:shadow-lg"
-                  title="View Login History"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                  <span className="hidden sm:inline">Users</span>
-                </button>
-              </div>
+            {isAdmin && (
+              <Link
+                href="/users"
+                className="px-2 py-1 sm:px-3 sm:py-1.5 bg-yellow-500 text-slate-900 text-xs font-semibold rounded-lg hover:bg-yellow-400 border-2 border-yellow-400 transition-all duration-200 flex items-center gap-1 sm:gap-2 relative z-10 shadow-md hover:shadow-lg"
+                title="View Users"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                <span className="hidden sm:inline">Users</span>
+              </Link>
             )}
           {isUserLoggedIn || isAdmin ? (
             <>

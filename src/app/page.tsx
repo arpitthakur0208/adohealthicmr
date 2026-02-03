@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import {
   getModules, createModule, updateModule, deleteModule,
   getQuestions, createQuestion, updateQuestion, deleteQuestion,
@@ -129,6 +129,15 @@ export default function Home() {
   const [loginHistory, setLoginHistory] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
   const [historyError, setHistoryError] = useState<string>("");
+
+  // Admin save success/error message (shown after save)
+  const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  // Track which item was just saved so we can highlight it
+  const [lastSavedItem, setLastSavedItem] = useState<{
+    type: "module" | "question" | "video" | "module-add";
+    moduleId: number;
+    questionId?: number;
+  } | null>(null);
   
   // Disable body scroll when dropdown is open
   useEffect(() => {
@@ -218,143 +227,144 @@ export default function Home() {
     checkAuth();
   }, []);
 
-  // Load all data from APIs after mount
-  useEffect(() => {
-    // Load image from localStorage (keep for now, can be migrated to API later)
-    const storedImage = localStorage.getItem('adminUploadedImage');
-    if (storedImage) {
-      setSelectedImage(storedImage);
-    }
-    
-    // Load login heading from localStorage (keep for now)
-    const storedLoginHeading = localStorage.getItem('adminLoginHeading');
-    if (storedLoginHeading) {
-      setLoginHeading(storedLoginHeading);
-    }
-    
-    // Load all data from APIs
-    const loadAllData = async () => {
-      try {
-        // Load modules from API
-        const modulesResponse = await getModules();
-        if (modulesResponse.success && modulesResponse.data?.modules) {
-          const apiModules: Module[] = modulesResponse.data.modules.map(m => ({
-            id: m.id,
-            title: m.title,
-            description: m.description,
-            color: m.color,
-          }));
-          if (apiModules.length > 0) {
-            setModules(apiModules);
-          } else {
-            // Fallback to defaults if no modules in database
-            setModules(defaultModules);
-          }
+  // Refetch all data from APIs (modules, questions, answers, videos) - used after admin saves
+  const refetchData = useCallback(async () => {
+    try {
+      const modulesResponse = await getModules();
+      if (modulesResponse.success && modulesResponse.data?.modules) {
+        const apiModules: Module[] = modulesResponse.data.modules.map(m => ({
+          id: m.id,
+          title: m.title,
+          description: m.description,
+          color: m.color,
+        }));
+        if (apiModules.length > 0) {
+          setModules(apiModules);
         } else {
-          // Fallback to defaults if API fails
           setModules(defaultModules);
         }
-
-        // Load questions from API
-        const questionsResponse = await getQuestions();
-        if (questionsResponse.success && questionsResponse.data?.questions) {
-          const apiQuestions: { [moduleId: number]: Question[] } = {};
-          questionsResponse.data.questions.forEach((q: QuestionData) => {
-            if (!apiQuestions[q.moduleId]) {
-              apiQuestions[q.moduleId] = [];
-            }
-            apiQuestions[q.moduleId].push({
-              id: q.id,
-              question: q.question,
-              options: q.options,
-              correctAnswer: q.correctAnswer,
-            });
-          });
-          setModuleQuestions(apiQuestions);
-        }
-
-        // Load answers from API (only if user is logged in)
-        if (isUserLoggedIn) {
-          try {
-            const answersResponse = await getAnswers();
-            if (answersResponse.success && answersResponse.data?.answers) {
-              const apiAnswers: { [moduleId: number]: { [questionId: number]: string } } = {};
-              answersResponse.data.answers.forEach((a: any) => {
-                if (!apiAnswers[a.moduleId]) {
-                  apiAnswers[a.moduleId] = {};
-                }
-                apiAnswers[a.moduleId][a.questionId] = a.answer;
-              });
-              setSavedAnswers(apiAnswers);
-            }
-          } catch (error) {
-            // Silently handle errors for answers (expected if not authenticated or DB unavailable)
-            console.debug('Could not load answers:', error);
-          }
-        }
-
-        // Load videos from API (only if user is logged in)
-        if (isUserLoggedIn || isAdmin) {
-          try {
-            const videosResponse = await getVideos();
-            if (videosResponse.success && videosResponse.data?.videos) {
-              const apiVideos: {
-                [moduleId: number]: {
-                  english: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
-                  punjabi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
-                  hindi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
-                  activity: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
-                };
-              } = {};
-              
-              videosResponse.data.videos.forEach((v: VideoData) => {
-                if (!apiVideos[v.moduleId]) {
-                  apiVideos[v.moduleId] = {
-                    english: [],
-                    punjabi: [],
-                    hindi: [],
-                    activity: [],
-                  };
-                }
-                apiVideos[v.moduleId][v.videoType].push({
-                  id: v.videoId,
-                  preview: v.preview,
-                  fileName: v.fileName,
-                  fileSize: v.fileSize,
-                });
-              });
-              setVideos(apiVideos);
-            }
-          } catch (error) {
-            // Silently handle errors for videos (expected if not authenticated or DB unavailable)
-            console.debug('Could not load videos:', error);
-          }
-        }
-      } catch (error) {
-        // Only log unexpected errors
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (!errorMessage.includes('Authentication') && !errorMessage.includes('Database')) {
-          console.error('Error loading data from APIs:', error);
-        }
-        // Fallback to defaults on error
+      } else {
         setModules(defaultModules);
       }
-    };
-    
-    loadAllData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+      const questionsResponse = await getQuestions();
+      if (questionsResponse.success && questionsResponse.data?.questions) {
+        const apiQuestions: { [moduleId: number]: Question[] } = {};
+        questionsResponse.data.questions.forEach((q: QuestionData) => {
+          if (!apiQuestions[q.moduleId]) {
+            apiQuestions[q.moduleId] = [];
+          }
+          apiQuestions[q.moduleId].push({
+            id: q.id,
+            question: q.question,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+          });
+        });
+        setModuleQuestions(apiQuestions);
+      }
+
+      if (isUserLoggedIn) {
+        try {
+          const answersResponse = await getAnswers();
+          if (answersResponse.success && answersResponse.data?.answers) {
+            const apiAnswers: { [moduleId: number]: { [questionId: number]: string } } = {};
+            answersResponse.data.answers.forEach((a: any) => {
+              if (!apiAnswers[a.moduleId]) {
+                apiAnswers[a.moduleId] = {};
+              }
+              apiAnswers[a.moduleId][a.questionId] = a.answer;
+            });
+            setSavedAnswers(apiAnswers);
+          }
+        } catch (error) {
+          console.debug('Could not load answers:', error);
+        }
+      }
+
+      if (isUserLoggedIn || isAdmin) {
+        try {
+          const videosResponse = await getVideos();
+          if (videosResponse.success && videosResponse.data?.videos) {
+            const apiVideos: {
+              [moduleId: number]: {
+                english: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+                punjabi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+                hindi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+                activity: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+              };
+            } = {};
+            videosResponse.data.videos.forEach((v: VideoData) => {
+              if (!apiVideos[v.moduleId]) {
+                apiVideos[v.moduleId] = {
+                  english: [],
+                  punjabi: [],
+                  hindi: [],
+                  activity: [],
+                };
+              }
+              apiVideos[v.moduleId][v.videoType].push({
+                id: v.videoId,
+                preview: v.preview,
+                fileName: v.fileName,
+                fileSize: v.fileSize,
+              });
+            });
+            setVideos(apiVideos);
+          }
+        } catch (error) {
+          console.debug('Could not load videos:', error);
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes('Authentication') && !errorMessage.includes('Database')) {
+        console.error('Error loading data from APIs:', error);
+      }
+      setModules(defaultModules);
+    }
   }, [isUserLoggedIn, isAdmin]);
+
+  // Load data on mount and when auth changes; also load image/heading from localStorage
+  useEffect(() => {
+    const storedImage = localStorage.getItem('adminUploadedImage');
+    if (storedImage) setSelectedImage(storedImage);
+    const storedLoginHeading = localStorage.getItem('adminLoginHeading');
+    if (storedLoginHeading) setLoginHeading(storedLoginHeading);
+    refetchData();
+  }, [refetchData]);
+
+  // Show save feedback toast (success or error) and optionally highlight the saved item
+  const showSaveFeedback = useCallback((
+    type: "success" | "error",
+    text: string,
+    savedItem?: { type: "module" | "question" | "video" | "module-add"; moduleId: number; questionId?: number } | null
+  ) => {
+    setSaveMessage({ type, text });
+    if (savedItem) setLastSavedItem(savedItem);
+    const t = setTimeout(() => {
+      setSaveMessage(null);
+      setLastSavedItem(null);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   const [showUserLogin, setShowUserLogin] = useState(false);
   const [loginMode, setLoginMode] = useState<'user' | 'admin'>('user');
-  const [loginUsername, setLoginUsername] = useState("");
+  const [userPopupView, setUserPopupView] = useState<'login' | 'create'>('login');
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [loginOTP, setLoginOTP] = useState("");
-  const [loginStep, setLoginStep] = useState<'email' | 'otp'>('email');
   const [loginError, setLoginError] = useState("");
   const [isLoginLoading, setIsLoginLoading] = useState(false);
-  const [isRequestingOTP, setIsRequestingOTP] = useState(false);
+  const [createEmail, setCreateEmail] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
+  const [createConfirmPassword, setCreateConfirmPassword] = useState("");
+  const [createError, setCreateError] = useState("");
+  const [isCreateLoading, setIsCreateLoading] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [showCreateConfirmPassword, setShowCreateConfirmPassword] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -418,146 +428,101 @@ export default function Home() {
     setEditDescription("");
   };
 
-  const handleRequestOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsRequestingOTP(true);
-    setLoginError("");
-
-    const trimmedEmail = loginEmail.trim();
-    const trimmedUsername = loginUsername.trim();
-
-    if (!trimmedEmail && !trimmedUsername) {
-      setLoginError("Please enter your username and email address.");
-      setIsRequestingOTP(false);
-      return;
-    }
-
-    if (!trimmedEmail) {
-      setLoginError("Please enter your email address.");
-      setIsRequestingOTP(false);
-      return;
-    }
-
-    if (!trimmedUsername) {
-      setLoginError("Please enter your username.");
-      setIsRequestingOTP(false);
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/auth/request-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: trimmedEmail || undefined,
-          username: trimmedUsername || undefined,
-        }),
-      });
-
-      // Check if response is ok before parsing JSON
-      let data;
-      try {
-        const text = await response.text();
-        if (!text) {
-          throw new Error('Empty response from server');
-        }
-        data = JSON.parse(text);
-      } catch (parseError) {
-        console.error('Failed to parse response:', parseError);
-        setLoginError(`Server error (${response.status}): ${response.statusText}. Please check server logs.`);
-        setIsRequestingOTP(false);
-        return;
-      }
-
-      if (response.ok && data.success) {
-        setLoginStep('otp');
-        setLoginError("");
-        
-        // In development, if email is not configured, show OTP in console and alert
-        if (data.debug && data.debug.otp) {
-          console.log('=== OTP CODE (Development Mode) ===');
-          console.log('Email:', trimmedEmail);
-          console.log('OTP:', data.debug.otp);
-          console.log('===================================');
-          alert(`OTP Code: ${data.debug.otp}\n\n⚠️ Email service is not configured!\n\n📧 To enable email sending:\n1. Go to https://web3forms.com\n2. Get your free access key\n3. Add WEB3FORMS_ACCESS_KEY=your_key to .env.local\n4. Restart the server (Ctrl+C then npm run dev)\n\n💡 For now, use the OTP code shown above to login.`);
-        } else {
-          // Show helpful message with reminder to check server console
-          console.log('📧 OTP request processed. Please check:');
-          console.log('1. Your email inbox (and spam folder)');
-          console.log('2. Your SERVER console (terminal where npm run dev is running)');
-          console.log('   - Look for "OTP CODE" or "email sent successfully" messages');
-          console.log('   - If email service is not configured, the OTP will be shown there');
-        }
-      } else {
-        setLoginError(data.message || data.error || "Failed to send OTP. Please try again.");
-      }
-    } catch (error) {
-      console.error('Request OTP error:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('Failed to execute') || errorMessage.includes('JSON')) {
-        setLoginError("Server returned invalid response. Please check if the server is running and try again.");
-      } else {
-        setLoginError("An error occurred while requesting OTP. Please try again.");
-      }
-    } finally {
-      setIsRequestingOTP(false);
-    }
-  };
-
-  const handleVerifyOTP = async (e: React.FormEvent) => {
+  const handleUserLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoginLoading(true);
     setLoginError("");
 
-    const trimmedOTP = loginOTP.trim();
     const trimmedEmail = loginEmail.trim();
-    const trimmedUsername = loginUsername.trim();
-
-    if (!trimmedOTP) {
-      setLoginError("Please enter the OTP sent to your email.");
+    if (!trimmedEmail) {
+      setLoginError("Please enter your email.");
+      setIsLoginLoading(false);
+      return;
+    }
+    if (!loginPassword) {
+      setLoginError("Please enter your password.");
       setIsLoginLoading(false);
       return;
     }
 
     try {
-      const response = await fetch('/api/auth/verify-otp', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: trimmedEmail || undefined,
-          username: trimmedUsername || undefined,
-          otp: trimmedOTP,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail, password: loginPassword }),
       });
-
       const data = await response.json();
 
       if (response.ok && data.success) {
         setIsUserLoggedIn(true);
-        setUserName(data.user.username);
+        setUserName(data.user.username || data.user.email);
         setUserEmail(data.user.email || '');
         setUserRole(data.user.role);
         setIsAdmin(data.user.role === 'admin');
         setShowUserLogin(false);
-        setLoginUsername("");
         setLoginEmail("");
-        setLoginOTP("");
-        setLoginStep('email');
+        setLoginPassword("");
         setLoginError("");
       } else {
-        setLoginError(data.message || data.error || "Invalid OTP. Please try again.");
-        setLoginOTP("");
+        setLoginError(data.message || data.error || "Login failed. Please try again.");
       }
     } catch (error) {
-      console.error('Verify OTP error:', error);
-      setLoginError("An error occurred during OTP verification. Please try again.");
-      setLoginOTP("");
+      console.error('User login error:', error);
+      setLoginError("An error occurred during login. Please try again.");
     } finally {
       setIsLoginLoading(false);
+    }
+  };
+
+  const handleCreateAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreateLoading(true);
+    setCreateError("");
+
+    const trimmedEmail = createEmail.trim();
+    if (!trimmedEmail) {
+      setCreateError("Please enter your email.");
+      setIsCreateLoading(false);
+      return;
+    }
+    if (!createPassword) {
+      setCreateError("Please set a password.");
+      setIsCreateLoading(false);
+      return;
+    }
+    if (createPassword !== createConfirmPassword) {
+      setCreateError("Password and confirm password do not match.");
+      setIsCreateLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail, password: createPassword }),
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setIsUserLoggedIn(true);
+        setUserName(data.user.username || data.user.email);
+        setUserEmail(data.user.email || '');
+        setUserRole(data.user.role);
+        setIsAdmin(data.user.role === 'admin');
+        setShowUserLogin(false);
+        setCreateEmail("");
+        setCreatePassword("");
+        setCreateConfirmPassword("");
+        setCreateError("");
+      } else {
+        setCreateError(data.message || data.error || "Could not create account. Email may already be registered.");
+      }
+    } catch (error) {
+      console.error('Create account error:', error);
+      setCreateError("An error occurred. Please try again.");
+    } finally {
+      setIsCreateLoading(false);
     }
   };
 
@@ -727,20 +692,14 @@ export default function Home() {
       });
       
       if (response.success && response.data?.module) {
-        const updatedModule = response.data.module;
-        const updatedModules = modules.map(m => 
-          m.id === moduleId 
-            ? { ...m, title: updatedModule.title, description: updatedModule.description }
-            : m
-        );
-        setModules(updatedModules);
-        alert('Module updated successfully!');
+        await refetchData();
+        showSaveFeedback('success', 'Module updated successfully.', { type: 'module', moduleId });
       } else {
-        alert(response.error || 'Failed to update module');
+        showSaveFeedback('error', response.error || 'Failed to update module');
       }
     } catch (error) {
       console.error('Error saving module:', error);
-      alert('An error occurred while saving the module. Please try again.');
+      showSaveFeedback('error', 'An error occurred while saving the module. Please try again.');
     }
     
     setEditingModule(null);
@@ -815,13 +774,14 @@ export default function Home() {
         };
         
         setModuleQuestions(updatedModuleQuestions);
-        alert('Question updated successfully!');
+        await refetchData();
+        showSaveFeedback('success', 'Question updated successfully.', { type: 'question', moduleId, questionId });
       } else {
-        alert(response.error || 'Failed to update question');
+        showSaveFeedback('error', response.error || 'Failed to update question');
       }
     } catch (error) {
       console.error('Error saving question:', error);
-      alert('An error occurred while saving the question. Please try again.');
+      showSaveFeedback('error', 'An error occurred while saving the question. Please try again.');
     }
     
     setEditingQuestion(null);
@@ -936,13 +896,14 @@ export default function Home() {
         };
         setVideos(updatedVideos);
 
-        alert('Module created successfully!');
+        await refetchData();
+        showSaveFeedback('success', 'Module created successfully.', { type: 'module-add', moduleId: createdModule.id });
       } else {
-        alert(moduleResponse.error || 'Failed to create module');
+        showSaveFeedback('error', moduleResponse.error || 'Failed to create module');
       }
     } catch (error) {
       console.error('Error creating new module:', error);
-      alert('An error occurred while creating the module. Please try again.');
+      showSaveFeedback('error', 'An error occurred while creating the module. Please try again.');
     }
   };
 
@@ -1001,13 +962,14 @@ export default function Home() {
         delete updatedSelectedVideoType[moduleId];
         setSelectedVideoType(updatedSelectedVideoType);
 
-        alert('Module deleted successfully!');
+        await refetchData();
+        showSaveFeedback('success', 'Module deleted successfully.');
       } else {
-        alert(response.error || 'Failed to delete module');
+        showSaveFeedback('error', response.error || 'Failed to delete module');
       }
     } catch (error) {
       console.error('Error deleting module:', error);
-      alert('An error occurred while deleting the module. Please try again.');
+      showSaveFeedback('error', 'An error occurred while deleting the module. Please try again.');
     }
   };
 
@@ -1186,14 +1148,15 @@ export default function Home() {
             [videoType]: null
           }
         }));
-        
-        alert('Video saved successfully! All users can now view this video.');
+
+        await refetchData();
+        showSaveFeedback('success', 'Video saved successfully. All users can now view this video.', { type: 'video', moduleId });
       } else {
-        alert(response.error || 'Failed to save video');
+        showSaveFeedback('error', response.error || 'Failed to save video');
       }
     } catch (error: any) {
       console.error('Error saving video:', error);
-      alert('Error saving video: ' + (error.message || 'Unknown error') + '. Please try again.');
+      showSaveFeedback('error', 'Error saving video: ' + (error.message || 'Unknown error') + '. Please try again.');
     }
   };
 
@@ -1216,13 +1179,14 @@ export default function Home() {
           }
         };
         setVideos(updatedVideos);
-        alert('Video deleted successfully!');
+        await refetchData();
+        showSaveFeedback('success', 'Video deleted successfully.', { type: 'video', moduleId });
       } else {
-        alert(response.error || 'Failed to delete video');
+        showSaveFeedback('error', response.error || 'Failed to delete video');
       }
     } catch (error: any) {
       console.error('Error removing video:', error);
-      alert('An error occurred while deleting the video. Please try again.');
+      showSaveFeedback('error', 'An error occurred while deleting the video. Please try again.');
     }
   };
 
@@ -1268,69 +1232,62 @@ export default function Home() {
     emailBody += "\n\nSubmitted via AdoHealth Initiative Website";
 
     try {
-      // Send email using API route
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: 'adohealthicmr2025@gmail.com',
-          subject: emailSubject,
-          body: emailBody,
-          answers: answers,
-        }),
+      // 1. Save answers to API first so they show in admin section even if email fails
+      const answersToSave: { [questionId: number]: string } = {};
+      const answerPromises: Promise<any>[] = [];
+      questions.forEach((q) => {
+        const answer = formData.get(`question-${q.id}`);
+        if (answer) {
+          answersToSave[q.id] = answer as string;
+          answerPromises.push(
+            submitAnswer({
+              moduleId,
+              questionId: q.id,
+              answer: answer as string,
+            })
+          );
+        }
       });
 
-      const result = await response.json();
+      let saveOk = false;
+      try {
+        const answerResults = await Promise.all(answerPromises);
+        saveOk = answerResults.every(r => r.success);
+        if (saveOk) {
+          setSavedAnswers(prev => ({ ...prev, [moduleId]: answersToSave }));
+        }
+      } catch (err) {
+        console.error('Error saving answers to API:', err);
+      }
 
-      if (result.success) {
-        // Submit answers to API
-        const answersToSave: { [questionId: number]: string } = {};
-        const answerPromises: Promise<any>[] = [];
-        
-        questions.forEach((q) => {
-          const answer = formData.get(`question-${q.id}`);
-          if (answer) {
-            answersToSave[q.id] = answer as string;
-            // Submit each answer via API
-            answerPromises.push(
-              submitAnswer({
-                moduleId,
-                questionId: q.id,
-                answer: answer as string,
-              })
-            );
-          }
+      if (!saveOk) {
+        alert('Failed to save answers. Please try again.');
+        return;
+      }
+
+      // 2. Then try to send email (optional; answers already saved for admin)
+      let emailSent = false;
+      try {
+        const response = await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: 'adohealthicmr2025@gmail.com',
+            subject: emailSubject,
+            body: emailBody,
+            answers,
+          }),
         });
-        
-        try {
-          const answerResults = await Promise.all(answerPromises);
-          const allSuccessful = answerResults.every(r => r.success);
-          
-          if (allSuccessful) {
-            const updatedSavedAnswers = {
-              ...savedAnswers,
-              [moduleId]: answersToSave
-            };
-            setSavedAnswers(updatedSavedAnswers);
-            console.log('Answers saved successfully to API');
-          } else {
-            console.warn('Some answers failed to save to API');
-          }
-        } catch (error) {
-          console.error('Error saving answers to API:', error);
-        }
+        const data = await response.json().catch(() => ({}));
+        emailSent = !!data.success && data.emailSent !== false;
+      } catch (err) {
+        console.warn('Email send failed:', err);
+      }
 
-        if (result.configured === false) {
-          alert('Answers submitted and saved! However, email service is not configured. Please configure WEB3FORMS_ACCESS_KEY in .env.local to enable email sending. Check the browser console for email details.');
-          console.log('Email details logged in server console. Configure email service to send emails.');
-        } else {
-          alert('Your answers have been submitted and saved successfully to adohealthicmr2025@gmail.com!');
-        }
-        // Don't reset form - keep answers visible for editing
+      if (emailSent) {
+        alert('Your answers have been saved and are visible in the admin Users section. A copy was sent to adohealthicmr2025@gmail.com.');
       } else {
-        alert('Failed to submit answers. Please try again.');
+        alert('Your answers have been saved and are visible in the admin Users section. (Email notification could not be sent.)');
       }
     } catch (error) {
       console.error('Error submitting answers:', error);
@@ -1340,6 +1297,18 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-blue-700">
+      {/* Admin save feedback toast */}
+      {saveMessage && (
+        <div
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] px-4 py-3 rounded-lg shadow-lg text-white font-medium max-w-md text-center ${
+            saveMessage.type === "success" ? "bg-green-600" : "bg-red-600"
+          }`}
+          role="alert"
+        >
+          {saveMessage.text}
+        </div>
+      )}
+
       <Header
         isUserLoggedIn={isUserLoggedIn}
         isAdmin={isAdmin}
@@ -1354,10 +1323,6 @@ export default function Home() {
         }}
         onModulesClick={() => {
           setIsModulesPanelOpen(true);
-        }}
-        onLoginHistoryClick={() => {
-          setShowLoginHistory(true);
-          fetchLoginHistory();
         }}
       />
 
@@ -1413,12 +1378,14 @@ export default function Home() {
                 onClick={() => {
                   setShowUserLogin(false);
                   setLoginMode('user');
-                  setLoginUsername("");
+                  setUserPopupView('login');
                   setLoginEmail("");
-                  setLoginOTP("");
                   setLoginPassword("");
-                  setLoginStep('email');
                   setLoginError("");
+                  setCreateEmail("");
+                  setCreatePassword("");
+                  setCreateConfirmPassword("");
+                  setCreateError("");
                   setAdminPassword("");
                   setAdminLoginError("");
                 }}
@@ -1438,10 +1405,12 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     setLoginMode('user');
-                    setLoginStep('email');
-                    setLoginUsername("");
+                    setUserPopupView('login');
                     setLoginEmail("");
-                    setLoginOTP("");
+                    setLoginPassword("");
+                    setCreateEmail("");
+                    setCreatePassword("");
+                    setCreateConfirmPassword("");
                     setAdminPassword("");
                     setAdminLoginError("");
                   }}
@@ -1457,11 +1426,12 @@ export default function Home() {
                   type="button"
                   onClick={() => {
                     setLoginMode('admin');
-                    setLoginStep('email');
-                    setLoginUsername("");
+                    setUserPopupView('login');
                     setLoginEmail("");
-                    setLoginOTP("");
                     setLoginPassword("");
+                    setCreateEmail("");
+                    setCreatePassword("");
+                    setCreateConfirmPassword("");
                     setLoginError("");
                   }}
                   className={`flex-1 px-4 py-2 rounded-md font-semibold text-sm transition-colors ${
@@ -1475,137 +1445,198 @@ export default function Home() {
               </div>
             </div>
 
-            {/* User Login Form */}
-            {loginMode === 'user' && (
-              <>
-                {loginStep === 'email' ? (
-                  <form onSubmit={handleRequestOTP}>
-                    <div className="mb-4">
-                      <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
-                        Username <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={loginUsername}
-                        onChange={(e) => {
-                          setLoginUsername(e.target.value);
-                          setLoginError("");
-                        }}
-                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
-                        placeholder="Enter your username"
-                        autoFocus
-                        required
-                      />
-                    </div>
-                    <div className="mb-4">
-                      <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
-                        Email Address <span className="text-red-400">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={loginEmail}
-                        onChange={(e) => {
-                          setLoginEmail(e.target.value);
-                          setLoginError("");
-                        }}
-                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
-                        placeholder="Enter your email address"
-                        required
-                      />
-                    </div>
-                    {loginError && (
-                      <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
-                        <p className="text-xs sm:text-sm text-red-300 font-medium">{loginError}</p>
-                      </div>
-                    )}
-                    <div className="flex gap-2 sm:gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowUserLogin(false);
-                          setLoginUsername("");
-                          setLoginEmail("");
-                          setLoginOTP("");
-                          setLoginStep('email');
-                          setLoginError("");
-                        }}
-                        className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isRequestingOTP}
-                        className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isRequestingOTP ? 'Sending OTP...' : 'Send OTP'}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <form onSubmit={handleVerifyOTP}>
-                    <div className="mb-4">
-                      <p className="text-xs sm:text-sm text-gray-300 mb-2">
-                        We've sent a 6-digit OTP to your email address. Please check your inbox (and spam folder) and enter the code below.
-                      </p>
-                      <p className="text-xs text-yellow-400 mb-2">
-                        💡 Tip: If you don't receive the email, check the server console (terminal) for the OTP code in development mode.
-                      </p>
-                      <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
-                        Enter OTP
-                      </label>
-                      <input
-                        type="text"
-                        value={loginOTP}
-                        onChange={(e) => {
-                          // Only allow digits and limit to 6 characters
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                          setLoginOTP(value);
-                          setLoginError("");
-                        }}
-                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white text-center text-2xl tracking-widest"
-                        placeholder="000000"
-                        autoFocus
-                        maxLength={6}
-                        required
-                      />
-                    </div>
-                    {loginError && (
-                      <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
-                        <p className="text-xs sm:text-sm text-red-300 font-medium">{loginError}</p>
-                      </div>
-                    )}
-                    <div className="flex gap-2 sm:gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLoginStep('email');
-                          setLoginOTP("");
-                          setLoginError("");
-                        }}
-                        className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
-                      >
-                        Back
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleRequestOTP}
-                        disabled={isRequestingOTP}
-                        className="px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-500 text-gray-200 font-semibold rounded-lg hover:bg-slate-400 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isRequestingOTP ? 'Sending...' : 'Resend OTP'}
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isLoginLoading || loginOTP.length !== 6}
-                        className="flex-1 px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isLoginLoading ? 'Verifying...' : 'Verify & Login'}
-                      </button>
-                    </div>
-                  </form>
+            {/* User: Login or Create account view */}
+            {loginMode === 'user' && userPopupView === 'login' && (
+              <form onSubmit={handleUserLogin}>
+                <div className="mb-4">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => { setLoginEmail(e.target.value); setLoginError(""); }}
+                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                    placeholder="Enter your email"
+                    autoFocus
+                    required
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showLoginPassword ? "text" : "password"}
+                      value={loginPassword}
+                      onChange={(e) => { setLoginPassword(e.target.value); setLoginError(""); }}
+                      className="w-full px-3 sm:px-4 py-2 pr-10 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                      placeholder="Enter your password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-yellow-400 transition-colors"
+                      aria-label={showLoginPassword ? "Hide password" : "Show password"}
+                    >
+                      {showLoginPassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                {loginError && (
+                  <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
+                    <p className="text-xs sm:text-sm text-red-300 font-medium">{loginError}</p>
+                  </div>
                 )}
-              </>
+                <div className="flex flex-wrap gap-2 sm:gap-3 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUserLogin(false);
+                      setLoginEmail("");
+                      setLoginPassword("");
+                      setLoginError("");
+                    }}
+                    className="flex-1 min-w-[80px] px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoginLoading}
+                    className="flex-1 min-w-[80px] px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoginLoading ? 'Logging in...' : 'Login'}
+                  </button>
+                </div>
+                <p className="text-center text-xs sm:text-sm text-gray-400">
+                  Don&apos;t have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => { setUserPopupView('create'); setLoginError(""); }}
+                    className="text-yellow-400 hover:text-yellow-300 font-medium underline"
+                  >
+                    Create account
+                  </button>
+                </p>
+              </form>
+            )}
+
+            {/* Create account form: email, set password, confirm password, Create button */}
+            {loginMode === 'user' && userPopupView === 'create' && (
+              <form onSubmit={handleCreateAccount}>
+                <div className="mb-4">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={createEmail}
+                    onChange={(e) => { setCreateEmail(e.target.value); setCreateError(""); }}
+                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                    placeholder="Enter your email"
+                    autoFocus
+                    required
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                    Set password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCreatePassword ? "text" : "password"}
+                      value={createPassword}
+                      onChange={(e) => { setCreatePassword(e.target.value); setCreateError(""); }}
+                      className="w-full px-3 sm:px-4 py-2 pr-10 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                      placeholder="Set your password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCreatePassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-yellow-400 transition-colors"
+                      aria-label={showCreatePassword ? "Hide password" : "Show password"}
+                    >
+                      {showCreatePassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
+                    Confirm password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCreateConfirmPassword ? "text" : "password"}
+                      value={createConfirmPassword}
+                      onChange={(e) => { setCreateConfirmPassword(e.target.value); setCreateError(""); }}
+                      className="w-full px-3 sm:px-4 py-2 pr-10 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                      placeholder="Confirm your password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateConfirmPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-yellow-400 transition-colors"
+                      aria-label={showCreateConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showCreateConfirmPassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                {createError && (
+                  <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
+                    <p className="text-xs sm:text-sm text-red-300 font-medium">{createError}</p>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2 sm:gap-3 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUserLogin(false);
+                      setCreateEmail("");
+                      setCreatePassword("");
+                      setCreateConfirmPassword("");
+                      setCreateError("");
+                    }}
+                    className="flex-1 min-w-[80px] px-3 sm:px-4 py-2 text-sm sm:text-base bg-slate-600 text-gray-200 font-semibold rounded-lg hover:bg-slate-500 transition-all shadow-md"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreateLoading}
+                    className="flex-1 min-w-[80px] px-3 sm:px-4 py-2 text-sm sm:text-base bg-yellow-500 text-slate-900 font-semibold rounded-lg hover:bg-yellow-400 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isCreateLoading ? 'Creating...' : 'Create'}
+                  </button>
+                </div>
+                <p className="text-center text-xs sm:text-sm text-gray-400">
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => { setUserPopupView('login'); setCreateError(""); }}
+                    className="text-yellow-400 hover:text-yellow-300 font-medium underline"
+                  >
+                    Login
+                  </button>
+                </p>
+              </form>
             )}
 
             {/* Admin Login Form */}
@@ -1632,17 +1663,31 @@ export default function Home() {
                   <label className="block text-xs sm:text-sm font-medium text-yellow-400 mb-2">
                     Password
                   </label>
-                  <input
-                    type="password"
-                    value={adminPassword}
-                    onChange={(e) => {
-                      setAdminPassword(e.target.value);
-                      setAdminLoginError("");
-                    }}
-                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
-                    placeholder="Enter admin password"
-                    required
-                  />
+                  <div className="relative">
+                    <input
+                      type={showAdminPassword ? "text" : "password"}
+                      value={adminPassword}
+                      onChange={(e) => {
+                        setAdminPassword(e.target.value);
+                        setAdminLoginError("");
+                      }}
+                      className="w-full px-3 sm:px-4 py-2 pr-10 text-sm sm:text-base border-2 border-yellow-500 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none bg-slate-700 text-white"
+                      placeholder="Enter admin password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword((v) => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-yellow-400 transition-colors"
+                      aria-label={showAdminPassword ? "Hide password" : "Show password"}
+                    >
+                      {showAdminPassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
                 {adminLoginError && (
                   <div className="mb-4 p-2 sm:p-3 bg-red-900 border-2 border-red-500 rounded-lg shadow-sm">
@@ -1894,11 +1939,23 @@ export default function Home() {
           {modules.map((module) => {
             const colorClasses = getColorClasses(module.color);
             const isEditing = editingModule === module.id;
+            const isJustSavedModule =
+              lastSavedItem?.moduleId === module.id &&
+              (lastSavedItem?.type === "module" || lastSavedItem?.type === "module-add" || lastSavedItem?.type === "video");
             
             return (
-              <>
-                <div key={module.id} className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-2 border-blue-700 mb-3 hover:border-yellow-500">
+              <Fragment key={module.id}>
+                <div
+                  className={`relative bg-white/90 backdrop-blur-sm rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-2 mb-3 hover:border-yellow-500 ${
+                    isJustSavedModule ? "ring-2 ring-green-500 border-green-500 shadow-green-500/20" : "border-blue-700"
+                  }`}
+                >
                 <div className="p-2 sm:p-3 flex items-start gap-2 sm:gap-3">
+                  {isJustSavedModule && (
+                    <span className="absolute top-2 right-2 text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded-full shadow-sm">
+                      Saved
+                    </span>
+                  )}
                   {/* Icon */}
                   <div className={`flex-shrink-0 w-10 h-10 ${colorClasses.bg.replace('500', '100')} rounded-lg flex items-center justify-center border ${colorClasses.border.replace('300', '200')}`}>
                     <svg
@@ -2430,17 +2487,28 @@ export default function Home() {
                       <div className="space-y-3">
                         {(moduleQuestions[module.id] || []).map((q) => {
                           const isEditing = editingQuestion?.moduleId === module.id && editingQuestion?.questionId === q.id;
+                          const isJustSavedQuestion =
+                            lastSavedItem?.type === "question" &&
+                            lastSavedItem.moduleId === module.id &&
+                            lastSavedItem.questionId === q.id;
                           
                           return (
                             <fieldset
                               key={q.id}
-                              className="border border-gray-200 rounded-lg p-4 hover:border-pink-300 transition-colors relative"
+                              className={`border rounded-lg p-4 hover:border-pink-300 transition-colors relative ${
+                                isJustSavedQuestion ? "ring-2 ring-green-500 border-green-500 bg-green-50/50" : "border-gray-200"
+                              }`}
                             >
+                              {isJustSavedQuestion && (
+                                <span className="absolute top-4 right-4 text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded-full shadow-sm">
+                                  Saved
+                                </span>
+                              )}
                               {isAdmin && !isEditing && (
                                 <button
                                   type="button"
                                   onClick={() => handleEditQuestion(module.id, q)}
-                                  className="absolute top-4 right-4 p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 border border-transparent hover:border-blue-200"
+                                  className={`absolute top-4 p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 border border-transparent hover:border-blue-200 ${isJustSavedQuestion ? "right-20" : "right-4"}`}
                                   title="Edit Question"
                                 >
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2632,7 +2700,7 @@ export default function Home() {
                   )}
                 </>
               )}
-              </>
+              </Fragment>
             );
           })}
         </div>

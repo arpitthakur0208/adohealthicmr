@@ -31,6 +31,12 @@ yarn-error.log*
 .env.production
 .env.development
 
+# fallback user store (no DB)
+data/users-fallback.json
+
+# Express API SQLite database
+express-api/data/
+
 # vercel
 .vercel
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAnswers, upsertAnswer, getQuestionById } from '@/lib/store';
-import { getCurrentUser, requireAuth } from '@/backend/lib/auth';
+import { requireAuth } from '@/backend/lib/auth';
+import { isExpressEnabled, proxyToExpress } from '@/lib/express-proxy';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,15 @@ export const GET = requireAuth(async (request: NextRequest, user) => {
     const moduleId = searchParams.get('moduleId');
     const userIdParam = searchParams.get('userId');
     const queryUserId = user.role === 'admin' && userIdParam ? userIdParam : user.userId;
+    if (isExpressEnabled()) {
+      const params = new URLSearchParams();
+      if (queryUserId) params.set('userId', queryUserId);
+      if (moduleId) params.set('moduleId', moduleId);
+      const q = params.toString();
+      const res = await proxyToExpress(`/api/answers${q ? '?' + q : ''}`);
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
     const moduleIdNum = moduleId ? parseInt(moduleId) : undefined;
     const answers = getAnswers(queryUserId, isNaN(moduleIdNum as number) ? undefined : moduleIdNum);
     return NextResponse.json({ success: true, answers });
@@ -24,7 +34,26 @@ export const GET = requireAuth(async (request: NextRequest, user) => {
 
 export const POST = requireAuth(async (request: NextRequest, user) => {
   try {
-    const { moduleId, questionId, answer } = await request.json();
+    const body = await request.json();
+    const { moduleId, questionId, answer } = body;
+    if (isExpressEnabled()) {
+      let isCorrect: boolean | undefined;
+      try {
+        const qRes = await proxyToExpress(`/api/questions?moduleId=${moduleId}`);
+        const qData = await qRes.json();
+        const question = qData.questions?.find((q: { id: number }) => q.id === questionId);
+        if (question && question.correctAnswer !== undefined) {
+          if (typeof answer === 'number') isCorrect = answer === question.correctAnswer;
+          else if (typeof answer === 'string') isCorrect = answer === question.options?.[question.correctAnswer];
+        }
+      } catch {}
+      const res = await proxyToExpress('/api/answers', {
+        method: 'POST',
+        body: JSON.stringify({ userId: user.userId, moduleId, questionId, answer: String(answer), isCorrect }),
+      });
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
     if (!moduleId || !questionId || answer === undefined) {
       return NextResponse.json(
         { error: 'moduleId, questionId, and answer are required' },

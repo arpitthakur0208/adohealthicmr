@@ -47,11 +47,21 @@ export async function POST(request: NextRequest) {
         }),
       });
 
-      const result = await response.json();
-      
+      const text = await response.text();
+      let result: { success?: boolean } = {};
+      try {
+        result = JSON.parse(text);
+      } catch {
+        console.warn('Email service returned non-JSON (e.g. HTML). Response length:', text?.length);
+        return NextResponse.json(
+          { success: true, message: 'Answers saved. Email could not be sent (service returned invalid response).', emailSent: false },
+          { status: 200 }
+        );
+      }
+
       if (result.success) {
         return NextResponse.json(
-          { success: true, message: 'Answers submitted successfully' },
+          { success: true, message: 'Answers submitted successfully', emailSent: true },
           { status: 200 }
         );
       }

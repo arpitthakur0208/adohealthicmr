@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getModules, getQuestions } from '@/lib/store';
+import { isExpressEnabled, proxyToExpress } from '@/lib/express-proxy';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    if (isExpressEnabled()) {
+      const res = await proxyToExpress('/api/data/load');
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
     const modules = getModules();
     const allQuestions = getQuestions();
     const questionsByModule: Record<string, Array<{ id: number; question: string; options: string[]; correctAnswer?: number }>> = {};
