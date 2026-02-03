@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getVideoById, updateVideo, deleteVideo } from '@/lib/store';
 import { requireAdmin } from '@/backend/lib/auth';
+import { isExpressEnabled, proxyToExpress } from '@/lib/express-proxy';
 
 export const dynamic = 'force-dynamic';
 
 function parseParams(
-  params: Promise<{ id: string }> | { id: string },
+  params: { id: string },
   searchParams: URLSearchParams
 ): { videoId: number; moduleIdNum: number; videoType: string } | null {
   const moduleId = searchParams.get('moduleId');
   const videoType = searchParams.get('videoType');
   if (!moduleId || !videoType) return null;
-  const videoId = parseInt(typeof params === 'object' && 'id' in params ? params.id : '');
+  const videoId = parseInt(params?.id ?? '');
   const moduleIdNum = parseInt(moduleId);
   if (isNaN(videoId) || isNaN(moduleIdNum)) return null;
   if (!['english', 'punjabi', 'hindi', 'activity'].includes(videoType)) return null;
@@ -31,6 +32,13 @@ export async function GET(
         { error: 'moduleId and videoType query parameters are required and must be valid' },
         { status: 400 }
       );
+    }
+    if (isExpressEnabled()) {
+      const videosRes = await proxyToExpress(`/api/videos?moduleId=${p.moduleIdNum}&videoType=${p.videoType}`);
+      const videosData = await videosRes.json();
+      const video = videosData.videos?.find((v: { videoId: number }) => v.videoId === p.videoId);
+      if (!video) return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+      return NextResponse.json({ success: true, video });
     }
     const video = getVideoById(p.moduleIdNum, p.videoType, p.videoId);
     if (!video) {
@@ -60,6 +68,21 @@ export const PUT = requireAdmin(async (
         { error: 'moduleId and videoType query parameters are required and must be valid' },
         { status: 400 }
       );
+    }
+    if (isExpressEnabled()) {
+      const body = await request.json();
+      const createRes = await proxyToExpress('/api/videos', {
+        method: 'POST',
+        body: JSON.stringify({
+          moduleId: p.moduleIdNum,
+          videoType: p.videoType,
+          videoId: p.videoId,
+          ...body,
+          uploadedBy: user.userId,
+        }),
+      });
+      const data = await createRes.json();
+      return NextResponse.json(data, { status: createRes.status });
     }
     const { preview, fileName, fileSize, fileUrl } = await request.json();
     const updatedVideo = updateVideo(p.moduleIdNum, p.videoType, p.videoId, {
@@ -99,6 +122,14 @@ export const DELETE = requireAdmin(async (
         { error: 'moduleId and videoType query parameters are required and must be valid' },
         { status: 400 }
       );
+    }
+    if (isExpressEnabled()) {
+      const res = await proxyToExpress(
+        `/api/videos/${p.moduleIdNum}/${p.videoType}/${p.videoId}`,
+        { method: 'DELETE' }
+      );
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
     }
     const ok = deleteVideo(p.moduleIdNum, p.videoType, p.videoId);
     if (!ok) {

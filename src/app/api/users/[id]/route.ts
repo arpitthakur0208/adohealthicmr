@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { hasDatabase } from '@/lib/db';
 import { getUserById, updateUserById, deleteUserById } from '@/lib/pg-auth';
+import { getFallbackUserById, updateFallbackUser, deleteFallbackUser } from '@/lib/fallback-users';
 import { requireAdmin, getCurrentUser } from '@/backend/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +23,13 @@ export async function GET(
         { status: 403 }
       );
     }
-    const user = await getUserById(userId);
+    let user;
+    if (hasDatabase()) {
+      user = await getUserById(userId);
+    } else {
+      user = await getFallbackUserById(userId);
+      if (user) user = { id: user.id, username: user.username, email: user.email, role: user.role };
+    }
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
@@ -62,12 +70,27 @@ export async function PUT(
         { status: 403 }
       );
     }
-    const updateData: Parameters<typeof updateUserById>[1] = {};
+    if (hasDatabase()) {
+      const updateData: Parameters<typeof updateUserById>[1] = {};
+      if (username) updateData.username = username;
+      if (email) updateData.email = email;
+      if (role && currentUser.role === 'admin') updateData.role = role;
+      if (password) updateData.password = password;
+      const user = await updateUserById(userId, updateData);
+      if (!user) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+      return NextResponse.json({
+        success: true,
+        message: 'User updated successfully',
+        user: { id: user.id, username: user.username, email: user.email, role: user.role },
+      });
+    }
+    const updateData: { email?: string; username?: string; password?: string } = {};
     if (username) updateData.username = username;
     if (email) updateData.email = email;
-    if (role && currentUser.role === 'admin') updateData.role = role;
     if (password) updateData.password = password;
-    const user = await updateUserById(userId, updateData);
+    const user = await updateFallbackUser(userId, updateData);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
@@ -99,7 +122,9 @@ export const DELETE = requireAdmin(async (
         { status: 400 }
       );
     }
-    const ok = await deleteUserById(userId);
+    const ok = hasDatabase()
+      ? await deleteUserById(userId)
+      : await deleteFallbackUser(userId);
     if (!ok) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getModules, createModule } from '@/lib/store';
 import { requireAdmin } from '@/backend/lib/auth';
+import { isExpressEnabled, proxyToExpress } from '@/lib/express-proxy';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    if (isExpressEnabled()) {
+      const res = await proxyToExpress('/api/modules');
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
     const modules = getModules();
     return NextResponse.json({ success: true, modules });
   } catch (error) {
@@ -16,7 +22,13 @@ export async function GET() {
 
 export const POST = requireAdmin(async (request: NextRequest) => {
   try {
-    const { id, title, description, color } = await request.json();
+    const body = await request.json();
+    if (isExpressEnabled()) {
+      const res = await proxyToExpress('/api/modules', { method: 'POST', body: JSON.stringify(body) });
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
+    const { id, title, description, color } = body;
     if (!id || !title || !description || !color) {
       return NextResponse.json({ error: 'All fields (id, title, description, color) are required' }, { status: 400 });
     }

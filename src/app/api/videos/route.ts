@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getVideos, createVideo } from '@/lib/store';
 import { requireAuth, requireAdmin } from '@/backend/lib/auth';
+import { isExpressEnabled, proxyToExpress } from '@/lib/express-proxy';
 
 export const dynamic = 'force-dynamic';
 
-export const GET = requireAuth(async (request: NextRequest, user) => {
+export const GET = requireAuth(async (request: NextRequest) => {
   try {
+    if (isExpressEnabled()) {
+      const { searchParams } = new URL(request.url);
+      const q = searchParams.toString();
+      const res = await proxyToExpress(`/api/videos${q ? '?' + q : ''}`);
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
     const { searchParams } = new URL(request.url);
     const moduleId = searchParams.get('moduleId');
     const videoType = searchParams.get('videoType');
@@ -26,7 +34,16 @@ export const GET = requireAuth(async (request: NextRequest, user) => {
 
 export const POST = requireAdmin(async (request: NextRequest, user) => {
   try {
-    const { moduleId, videoType, videoId, preview, fileName, fileSize, fileUrl } = await request.json();
+    const body = await request.json();
+    if (isExpressEnabled()) {
+      const res = await proxyToExpress('/api/videos', {
+        method: 'POST',
+        body: JSON.stringify({ ...body, uploadedBy: user.userId }),
+      });
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
+    const { moduleId, videoType, videoId, preview, fileName, fileSize, fileUrl } = body;
     if (!moduleId || !videoType || videoId === undefined || !preview || !fileName || fileSize === undefined) {
       return NextResponse.json(
         { error: 'All fields (moduleId, videoType, videoId, preview, fileName, fileSize) are required' },

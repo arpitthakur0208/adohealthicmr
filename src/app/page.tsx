@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import {
   getModules, createModule, updateModule, deleteModule,
   getQuestions, createQuestion, updateQuestion, deleteQuestion,
@@ -129,6 +129,15 @@ export default function Home() {
   const [loginHistory, setLoginHistory] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
   const [historyError, setHistoryError] = useState<string>("");
+
+  // Admin save success/error message (shown after save)
+  const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  // Track which item was just saved so we can highlight it
+  const [lastSavedItem, setLastSavedItem] = useState<{
+    type: "module" | "question" | "video" | "module-add";
+    moduleId: number;
+    questionId?: number;
+  } | null>(null);
   
   // Disable body scroll when dropdown is open
   useEffect(() => {
@@ -218,132 +227,127 @@ export default function Home() {
     checkAuth();
   }, []);
 
-  // Load all data from APIs after mount
-  useEffect(() => {
-    // Load image from localStorage (keep for now, can be migrated to API later)
-    const storedImage = localStorage.getItem('adminUploadedImage');
-    if (storedImage) {
-      setSelectedImage(storedImage);
-    }
-    
-    // Load login heading from localStorage (keep for now)
-    const storedLoginHeading = localStorage.getItem('adminLoginHeading');
-    if (storedLoginHeading) {
-      setLoginHeading(storedLoginHeading);
-    }
-    
-    // Load all data from APIs
-    const loadAllData = async () => {
-      try {
-        // Load modules from API
-        const modulesResponse = await getModules();
-        if (modulesResponse.success && modulesResponse.data?.modules) {
-          const apiModules: Module[] = modulesResponse.data.modules.map(m => ({
-            id: m.id,
-            title: m.title,
-            description: m.description,
-            color: m.color,
-          }));
-          if (apiModules.length > 0) {
-            setModules(apiModules);
-          } else {
-            // Fallback to defaults if no modules in database
-            setModules(defaultModules);
-          }
+  // Refetch all data from APIs (modules, questions, answers, videos) - used after admin saves
+  const refetchData = useCallback(async () => {
+    try {
+      const modulesResponse = await getModules();
+      if (modulesResponse.success && modulesResponse.data?.modules) {
+        const apiModules: Module[] = modulesResponse.data.modules.map(m => ({
+          id: m.id,
+          title: m.title,
+          description: m.description,
+          color: m.color,
+        }));
+        if (apiModules.length > 0) {
+          setModules(apiModules);
         } else {
-          // Fallback to defaults if API fails
           setModules(defaultModules);
         }
-
-        // Load questions from API
-        const questionsResponse = await getQuestions();
-        if (questionsResponse.success && questionsResponse.data?.questions) {
-          const apiQuestions: { [moduleId: number]: Question[] } = {};
-          questionsResponse.data.questions.forEach((q: QuestionData) => {
-            if (!apiQuestions[q.moduleId]) {
-              apiQuestions[q.moduleId] = [];
-            }
-            apiQuestions[q.moduleId].push({
-              id: q.id,
-              question: q.question,
-              options: q.options,
-              correctAnswer: q.correctAnswer,
-            });
-          });
-          setModuleQuestions(apiQuestions);
-        }
-
-        // Load answers from API (only if user is logged in)
-        if (isUserLoggedIn) {
-          try {
-            const answersResponse = await getAnswers();
-            if (answersResponse.success && answersResponse.data?.answers) {
-              const apiAnswers: { [moduleId: number]: { [questionId: number]: string } } = {};
-              answersResponse.data.answers.forEach((a: any) => {
-                if (!apiAnswers[a.moduleId]) {
-                  apiAnswers[a.moduleId] = {};
-                }
-                apiAnswers[a.moduleId][a.questionId] = a.answer;
-              });
-              setSavedAnswers(apiAnswers);
-            }
-          } catch (error) {
-            // Silently handle errors for answers (expected if not authenticated or DB unavailable)
-            console.debug('Could not load answers:', error);
-          }
-        }
-
-        // Load videos from API (only if user is logged in)
-        if (isUserLoggedIn || isAdmin) {
-          try {
-            const videosResponse = await getVideos();
-            if (videosResponse.success && videosResponse.data?.videos) {
-              const apiVideos: {
-                [moduleId: number]: {
-                  english: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
-                  punjabi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
-                  hindi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
-                  activity: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
-                };
-              } = {};
-              
-              videosResponse.data.videos.forEach((v: VideoData) => {
-                if (!apiVideos[v.moduleId]) {
-                  apiVideos[v.moduleId] = {
-                    english: [],
-                    punjabi: [],
-                    hindi: [],
-                    activity: [],
-                  };
-                }
-                apiVideos[v.moduleId][v.videoType].push({
-                  id: v.videoId,
-                  preview: v.preview,
-                  fileName: v.fileName,
-                  fileSize: v.fileSize,
-                });
-              });
-              setVideos(apiVideos);
-            }
-          } catch (error) {
-            // Silently handle errors for videos (expected if not authenticated or DB unavailable)
-            console.debug('Could not load videos:', error);
-          }
-        }
-      } catch (error) {
-        // Only log unexpected errors
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (!errorMessage.includes('Authentication') && !errorMessage.includes('Database')) {
-          console.error('Error loading data from APIs:', error);
-        }
-        // Fallback to defaults on error
+      } else {
         setModules(defaultModules);
       }
-    };
-    
-    loadAllData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+      const questionsResponse = await getQuestions();
+      if (questionsResponse.success && questionsResponse.data?.questions) {
+        const apiQuestions: { [moduleId: number]: Question[] } = {};
+        questionsResponse.data.questions.forEach((q: QuestionData) => {
+          if (!apiQuestions[q.moduleId]) {
+            apiQuestions[q.moduleId] = [];
+          }
+          apiQuestions[q.moduleId].push({
+            id: q.id,
+            question: q.question,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+          });
+        });
+        setModuleQuestions(apiQuestions);
+      }
+
+      if (isUserLoggedIn) {
+        try {
+          const answersResponse = await getAnswers();
+          if (answersResponse.success && answersResponse.data?.answers) {
+            const apiAnswers: { [moduleId: number]: { [questionId: number]: string } } = {};
+            answersResponse.data.answers.forEach((a: any) => {
+              if (!apiAnswers[a.moduleId]) {
+                apiAnswers[a.moduleId] = {};
+              }
+              apiAnswers[a.moduleId][a.questionId] = a.answer;
+            });
+            setSavedAnswers(apiAnswers);
+          }
+        } catch (error) {
+          console.debug('Could not load answers:', error);
+        }
+      }
+
+      if (isUserLoggedIn || isAdmin) {
+        try {
+          const videosResponse = await getVideos();
+          if (videosResponse.success && videosResponse.data?.videos) {
+            const apiVideos: {
+              [moduleId: number]: {
+                english: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+                punjabi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+                hindi: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+                activity: Array<{ id: number; preview: string; fileName: string; fileSize: number }>;
+              };
+            } = {};
+            videosResponse.data.videos.forEach((v: VideoData) => {
+              if (!apiVideos[v.moduleId]) {
+                apiVideos[v.moduleId] = {
+                  english: [],
+                  punjabi: [],
+                  hindi: [],
+                  activity: [],
+                };
+              }
+              apiVideos[v.moduleId][v.videoType].push({
+                id: v.videoId,
+                preview: v.preview,
+                fileName: v.fileName,
+                fileSize: v.fileSize,
+              });
+            });
+            setVideos(apiVideos);
+          }
+        } catch (error) {
+          console.debug('Could not load videos:', error);
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes('Authentication') && !errorMessage.includes('Database')) {
+        console.error('Error loading data from APIs:', error);
+      }
+      setModules(defaultModules);
+    }
   }, [isUserLoggedIn, isAdmin]);
+
+  // Load data on mount and when auth changes; also load image/heading from localStorage
+  useEffect(() => {
+    const storedImage = localStorage.getItem('adminUploadedImage');
+    if (storedImage) setSelectedImage(storedImage);
+    const storedLoginHeading = localStorage.getItem('adminLoginHeading');
+    if (storedLoginHeading) setLoginHeading(storedLoginHeading);
+    refetchData();
+  }, [refetchData]);
+
+  // Show save feedback toast (success or error) and optionally highlight the saved item
+  const showSaveFeedback = useCallback((
+    type: "success" | "error",
+    text: string,
+    savedItem?: { type: "module" | "question" | "video" | "module-add"; moduleId: number; questionId?: number } | null
+  ) => {
+    setSaveMessage({ type, text });
+    if (savedItem) setLastSavedItem(savedItem);
+    const t = setTimeout(() => {
+      setSaveMessage(null);
+      setLastSavedItem(null);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   const [showUserLogin, setShowUserLogin] = useState(false);
   const [loginMode, setLoginMode] = useState<'user' | 'admin'>('user');
@@ -688,20 +692,14 @@ export default function Home() {
       });
       
       if (response.success && response.data?.module) {
-        const updatedModule = response.data.module;
-        const updatedModules = modules.map(m => 
-          m.id === moduleId 
-            ? { ...m, title: updatedModule.title, description: updatedModule.description }
-            : m
-        );
-        setModules(updatedModules);
-        alert('Module updated successfully!');
+        await refetchData();
+        showSaveFeedback('success', 'Module updated successfully.', { type: 'module', moduleId });
       } else {
-        alert(response.error || 'Failed to update module');
+        showSaveFeedback('error', response.error || 'Failed to update module');
       }
     } catch (error) {
       console.error('Error saving module:', error);
-      alert('An error occurred while saving the module. Please try again.');
+      showSaveFeedback('error', 'An error occurred while saving the module. Please try again.');
     }
     
     setEditingModule(null);
@@ -776,13 +774,14 @@ export default function Home() {
         };
         
         setModuleQuestions(updatedModuleQuestions);
-        alert('Question updated successfully!');
+        await refetchData();
+        showSaveFeedback('success', 'Question updated successfully.', { type: 'question', moduleId, questionId });
       } else {
-        alert(response.error || 'Failed to update question');
+        showSaveFeedback('error', response.error || 'Failed to update question');
       }
     } catch (error) {
       console.error('Error saving question:', error);
-      alert('An error occurred while saving the question. Please try again.');
+      showSaveFeedback('error', 'An error occurred while saving the question. Please try again.');
     }
     
     setEditingQuestion(null);
@@ -897,13 +896,14 @@ export default function Home() {
         };
         setVideos(updatedVideos);
 
-        alert('Module created successfully!');
+        await refetchData();
+        showSaveFeedback('success', 'Module created successfully.', { type: 'module-add', moduleId: createdModule.id });
       } else {
-        alert(moduleResponse.error || 'Failed to create module');
+        showSaveFeedback('error', moduleResponse.error || 'Failed to create module');
       }
     } catch (error) {
       console.error('Error creating new module:', error);
-      alert('An error occurred while creating the module. Please try again.');
+      showSaveFeedback('error', 'An error occurred while creating the module. Please try again.');
     }
   };
 
@@ -962,13 +962,14 @@ export default function Home() {
         delete updatedSelectedVideoType[moduleId];
         setSelectedVideoType(updatedSelectedVideoType);
 
-        alert('Module deleted successfully!');
+        await refetchData();
+        showSaveFeedback('success', 'Module deleted successfully.');
       } else {
-        alert(response.error || 'Failed to delete module');
+        showSaveFeedback('error', response.error || 'Failed to delete module');
       }
     } catch (error) {
       console.error('Error deleting module:', error);
-      alert('An error occurred while deleting the module. Please try again.');
+      showSaveFeedback('error', 'An error occurred while deleting the module. Please try again.');
     }
   };
 
@@ -1147,14 +1148,15 @@ export default function Home() {
             [videoType]: null
           }
         }));
-        
-        alert('Video saved successfully! All users can now view this video.');
+
+        await refetchData();
+        showSaveFeedback('success', 'Video saved successfully. All users can now view this video.', { type: 'video', moduleId });
       } else {
-        alert(response.error || 'Failed to save video');
+        showSaveFeedback('error', response.error || 'Failed to save video');
       }
     } catch (error: any) {
       console.error('Error saving video:', error);
-      alert('Error saving video: ' + (error.message || 'Unknown error') + '. Please try again.');
+      showSaveFeedback('error', 'Error saving video: ' + (error.message || 'Unknown error') + '. Please try again.');
     }
   };
 
@@ -1177,13 +1179,14 @@ export default function Home() {
           }
         };
         setVideos(updatedVideos);
-        alert('Video deleted successfully!');
+        await refetchData();
+        showSaveFeedback('success', 'Video deleted successfully.', { type: 'video', moduleId });
       } else {
-        alert(response.error || 'Failed to delete video');
+        showSaveFeedback('error', response.error || 'Failed to delete video');
       }
     } catch (error: any) {
       console.error('Error removing video:', error);
-      alert('An error occurred while deleting the video. Please try again.');
+      showSaveFeedback('error', 'An error occurred while deleting the video. Please try again.');
     }
   };
 
@@ -1229,69 +1232,62 @@ export default function Home() {
     emailBody += "\n\nSubmitted via AdoHealth Initiative Website";
 
     try {
-      // Send email using API route
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: 'adohealthicmr2025@gmail.com',
-          subject: emailSubject,
-          body: emailBody,
-          answers: answers,
-        }),
+      // 1. Save answers to API first so they show in admin section even if email fails
+      const answersToSave: { [questionId: number]: string } = {};
+      const answerPromises: Promise<any>[] = [];
+      questions.forEach((q) => {
+        const answer = formData.get(`question-${q.id}`);
+        if (answer) {
+          answersToSave[q.id] = answer as string;
+          answerPromises.push(
+            submitAnswer({
+              moduleId,
+              questionId: q.id,
+              answer: answer as string,
+            })
+          );
+        }
       });
 
-      const result = await response.json();
+      let saveOk = false;
+      try {
+        const answerResults = await Promise.all(answerPromises);
+        saveOk = answerResults.every(r => r.success);
+        if (saveOk) {
+          setSavedAnswers(prev => ({ ...prev, [moduleId]: answersToSave }));
+        }
+      } catch (err) {
+        console.error('Error saving answers to API:', err);
+      }
 
-      if (result.success) {
-        // Submit answers to API
-        const answersToSave: { [questionId: number]: string } = {};
-        const answerPromises: Promise<any>[] = [];
-        
-        questions.forEach((q) => {
-          const answer = formData.get(`question-${q.id}`);
-          if (answer) {
-            answersToSave[q.id] = answer as string;
-            // Submit each answer via API
-            answerPromises.push(
-              submitAnswer({
-                moduleId,
-                questionId: q.id,
-                answer: answer as string,
-              })
-            );
-          }
+      if (!saveOk) {
+        alert('Failed to save answers. Please try again.');
+        return;
+      }
+
+      // 2. Then try to send email (optional; answers already saved for admin)
+      let emailSent = false;
+      try {
+        const response = await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: 'adohealthicmr2025@gmail.com',
+            subject: emailSubject,
+            body: emailBody,
+            answers,
+          }),
         });
-        
-        try {
-          const answerResults = await Promise.all(answerPromises);
-          const allSuccessful = answerResults.every(r => r.success);
-          
-          if (allSuccessful) {
-            const updatedSavedAnswers = {
-              ...savedAnswers,
-              [moduleId]: answersToSave
-            };
-            setSavedAnswers(updatedSavedAnswers);
-            console.log('Answers saved successfully to API');
-          } else {
-            console.warn('Some answers failed to save to API');
-          }
-        } catch (error) {
-          console.error('Error saving answers to API:', error);
-        }
+        const data = await response.json().catch(() => ({}));
+        emailSent = !!data.success && data.emailSent !== false;
+      } catch (err) {
+        console.warn('Email send failed:', err);
+      }
 
-        if (result.configured === false) {
-          alert('Answers submitted and saved! However, email service is not configured. Please configure WEB3FORMS_ACCESS_KEY in .env.local to enable email sending. Check the browser console for email details.');
-          console.log('Email details logged in server console. Configure email service to send emails.');
-        } else {
-          alert('Your answers have been submitted and saved successfully to adohealthicmr2025@gmail.com!');
-        }
-        // Don't reset form - keep answers visible for editing
+      if (emailSent) {
+        alert('Your answers have been saved and are visible in the admin Users section. A copy was sent to adohealthicmr2025@gmail.com.');
       } else {
-        alert('Failed to submit answers. Please try again.');
+        alert('Your answers have been saved and are visible in the admin Users section. (Email notification could not be sent.)');
       }
     } catch (error) {
       console.error('Error submitting answers:', error);
@@ -1301,6 +1297,18 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-blue-700">
+      {/* Admin save feedback toast */}
+      {saveMessage && (
+        <div
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-[300] px-4 py-3 rounded-lg shadow-lg text-white font-medium max-w-md text-center ${
+            saveMessage.type === "success" ? "bg-green-600" : "bg-red-600"
+          }`}
+          role="alert"
+        >
+          {saveMessage.text}
+        </div>
+      )}
+
       <Header
         isUserLoggedIn={isUserLoggedIn}
         isAdmin={isAdmin}
@@ -1315,10 +1323,6 @@ export default function Home() {
         }}
         onModulesClick={() => {
           setIsModulesPanelOpen(true);
-        }}
-        onLoginHistoryClick={() => {
-          setShowLoginHistory(true);
-          fetchLoginHistory();
         }}
       />
 
@@ -1935,11 +1939,23 @@ export default function Home() {
           {modules.map((module) => {
             const colorClasses = getColorClasses(module.color);
             const isEditing = editingModule === module.id;
+            const isJustSavedModule =
+              lastSavedItem?.moduleId === module.id &&
+              (lastSavedItem?.type === "module" || lastSavedItem?.type === "module-add" || lastSavedItem?.type === "video");
             
             return (
-              <>
-                <div key={module.id} className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-2 border-blue-700 mb-3 hover:border-yellow-500">
+              <Fragment key={module.id}>
+                <div
+                  className={`relative bg-white/90 backdrop-blur-sm rounded-lg shadow-md hover:shadow-lg transition-all duration-300 border-2 mb-3 hover:border-yellow-500 ${
+                    isJustSavedModule ? "ring-2 ring-green-500 border-green-500 shadow-green-500/20" : "border-blue-700"
+                  }`}
+                >
                 <div className="p-2 sm:p-3 flex items-start gap-2 sm:gap-3">
+                  {isJustSavedModule && (
+                    <span className="absolute top-2 right-2 text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded-full shadow-sm">
+                      Saved
+                    </span>
+                  )}
                   {/* Icon */}
                   <div className={`flex-shrink-0 w-10 h-10 ${colorClasses.bg.replace('500', '100')} rounded-lg flex items-center justify-center border ${colorClasses.border.replace('300', '200')}`}>
                     <svg
@@ -2471,17 +2487,28 @@ export default function Home() {
                       <div className="space-y-3">
                         {(moduleQuestions[module.id] || []).map((q) => {
                           const isEditing = editingQuestion?.moduleId === module.id && editingQuestion?.questionId === q.id;
+                          const isJustSavedQuestion =
+                            lastSavedItem?.type === "question" &&
+                            lastSavedItem.moduleId === module.id &&
+                            lastSavedItem.questionId === q.id;
                           
                           return (
                             <fieldset
                               key={q.id}
-                              className="border border-gray-200 rounded-lg p-4 hover:border-pink-300 transition-colors relative"
+                              className={`border rounded-lg p-4 hover:border-pink-300 transition-colors relative ${
+                                isJustSavedQuestion ? "ring-2 ring-green-500 border-green-500 bg-green-50/50" : "border-gray-200"
+                              }`}
                             >
+                              {isJustSavedQuestion && (
+                                <span className="absolute top-4 right-4 text-xs font-semibold text-green-600 bg-green-100 px-2 py-0.5 rounded-full shadow-sm">
+                                  Saved
+                                </span>
+                              )}
                               {isAdmin && !isEditing && (
                                 <button
                                   type="button"
                                   onClick={() => handleEditQuestion(module.id, q)}
-                                  className="absolute top-4 right-4 p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 border border-transparent hover:border-blue-200"
+                                  className={`absolute top-4 p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 border border-transparent hover:border-blue-200 ${isJustSavedQuestion ? "right-20" : "right-4"}`}
                                   title="Edit Question"
                                 >
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2673,7 +2700,7 @@ export default function Home() {
                   )}
                 </>
               )}
-              </>
+              </Fragment>
             );
           })}
         </div>

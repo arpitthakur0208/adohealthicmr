@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getQuestionById, updateQuestion, deleteQuestion } from '@/lib/store';
 import { requireAdmin } from '@/backend/lib/auth';
+import { isExpressEnabled, proxyToExpress } from '@/lib/express-proxy';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,12 +11,19 @@ export async function GET(
 ) {
   try {
     const resolvedParams = params instanceof Promise ? await params : params;
+    const id = resolvedParams.id;
     const { searchParams } = new URL(request.url);
     const moduleId = searchParams.get('moduleId');
+    if (isExpressEnabled()) {
+      const q = searchParams.toString();
+      const res = await proxyToExpress(`/api/questions/${id}${q ? '?' + q : ''}`);
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
     if (!moduleId) {
       return NextResponse.json({ error: 'moduleId query parameter is required' }, { status: 400 });
     }
-    const questionId = parseInt(resolvedParams.id);
+    const questionId = parseInt(id);
     const moduleIdNum = parseInt(moduleId);
     if (isNaN(questionId) || isNaN(moduleIdNum)) {
       return NextResponse.json({ error: 'Invalid question ID or module ID' }, { status: 400 });
@@ -41,17 +49,27 @@ export const PUT = requireAdmin(async (
 ) => {
   try {
     const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+    const id = resolvedParams.id;
+    const body = await request.json();
     const { searchParams } = new URL(request.url);
     const moduleId = searchParams.get('moduleId');
+    if (isExpressEnabled()) {
+      const res = await proxyToExpress(`/api/questions/${id}?moduleId=${moduleId || ''}`, {
+        method: 'PUT',
+        body: JSON.stringify({ ...body, moduleId: moduleId ? parseInt(moduleId) : undefined }),
+      });
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
     if (!moduleId) {
       return NextResponse.json({ error: 'moduleId query parameter is required' }, { status: 400 });
     }
-    const questionId = parseInt(resolvedParams.id);
+    const questionId = parseInt(id);
     const moduleIdNum = parseInt(moduleId);
     if (isNaN(questionId) || isNaN(moduleIdNum)) {
       return NextResponse.json({ error: 'Invalid question ID or module ID' }, { status: 400 });
     }
-    const { question, options, correctAnswer } = await request.json();
+    const { question, options, correctAnswer } = body;
     if (options && Array.isArray(options) && options.length < 2) {
       return NextResponse.json(
         { error: 'Question must have at least 2 options' },
@@ -83,12 +101,18 @@ export const DELETE = requireAdmin(async (
 ) => {
   try {
     const resolvedParams = context.params instanceof Promise ? await context.params : context.params;
+    const id = resolvedParams.id;
     const { searchParams } = new URL(request.url);
     const moduleId = searchParams.get('moduleId');
+    if (isExpressEnabled()) {
+      const res = await proxyToExpress(`/api/questions/${id}?moduleId=${moduleId || ''}`, { method: 'DELETE' });
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
     if (!moduleId) {
       return NextResponse.json({ error: 'moduleId query parameter is required' }, { status: 400 });
     }
-    const questionId = parseInt(resolvedParams.id);
+    const questionId = parseInt(id);
     const moduleIdNum = parseInt(moduleId);
     if (isNaN(questionId) || isNaN(moduleIdNum)) {
       return NextResponse.json({ error: 'Invalid question ID or module ID' }, { status: 400 });

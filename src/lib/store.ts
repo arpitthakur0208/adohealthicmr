@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'app-data.json');
+const ANSWERS_FILE = path.join(process.cwd(), 'data', 'answers.json');
 
 // --- Types ---
 export interface ModuleRecord {
@@ -92,6 +93,26 @@ function loadData() {
       passwordHash: defaultHash,
       role: 'admin',
     });
+    // Load persisted answers
+    try {
+      const answersRaw = fs.readFileSync(ANSWERS_FILE, 'utf8');
+      const answersArr = JSON.parse(answersRaw);
+      if (Array.isArray(answersArr)) {
+        answersStore.length = 0;
+        for (const a of answersArr) {
+          answersStore.push({
+            userId: a.userId,
+            moduleId: a.moduleId,
+            questionId: a.questionId,
+            answer: a.answer,
+            isCorrect: a.isCorrect,
+            submittedAt: new Date(a.submittedAt),
+          });
+        }
+      }
+    } catch (e) {
+      // No answers file yet or invalid - leave store as is
+    }
   } catch (e) {
     console.warn('Store: could not load app-data.json', e);
     modules = [];
@@ -209,6 +230,24 @@ export function getAllAnswers(moduleId?: number): AnswerRecord[] {
   return list;
 }
 
+function persistAnswers(): void {
+  try {
+    const dir = path.dirname(ANSWERS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const out = answersStore.map((a) => ({
+      userId: a.userId,
+      moduleId: a.moduleId,
+      questionId: a.questionId,
+      answer: a.answer,
+      isCorrect: a.isCorrect,
+      submittedAt: a.submittedAt.toISOString(),
+    }));
+    fs.writeFileSync(ANSWERS_FILE, JSON.stringify(out, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('Store: could not persist answers.json', e);
+  }
+}
+
 export function upsertAnswer(data: { userId: string; moduleId: number; questionId: number; answer: string; isCorrect?: boolean }): AnswerRecord {
   loadData();
   const existing = answersStore.findIndex(
@@ -220,9 +259,10 @@ export function upsertAnswer(data: { userId: string; moduleId: number; questionI
   };
   if (existing >= 0) {
     answersStore[existing] = record;
-    return record;
+  } else {
+    answersStore.push(record);
   }
-  answersStore.push(record);
+  persistAnswers();
   return record;
 }
 

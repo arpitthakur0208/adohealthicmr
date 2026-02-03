@@ -53,6 +53,11 @@ export function verifyFallbackPassword(user: FallbackUserRecord, password: strin
   return bcrypt.compareSync(password, user.passwordHash);
 }
 
+export async function getFallbackUserById(id: string): Promise<FallbackUserRecord | undefined> {
+  const users = await readUsers();
+  return users.find((u) => u.id === id);
+}
+
 export async function createFallbackUser(email: string, password: string): Promise<FallbackUserRecord> {
   const key = email.trim().toLowerCase();
   const users = await readUsers();
@@ -65,4 +70,26 @@ export async function createFallbackUser(email: string, password: string): Promi
   users.push(record);
   await writeUsers(users);
   return record;
+}
+
+export async function updateFallbackUser(
+  id: string,
+  updates: { email?: string; username?: string; password?: string }
+): Promise<FallbackUserRecord | null> {
+  const users = await readUsers();
+  const i = users.findIndex((u) => u.id === id);
+  if (i === -1) return null;
+  if (updates.email) users[i].email = updates.email.trim().toLowerCase();
+  if (updates.username) users[i].username = updates.username.trim();
+  if (updates.password) users[i].passwordHash = bcrypt.hashSync(updates.password, 10);
+  await writeUsers(users);
+  return users[i];
+}
+
+export async function deleteFallbackUser(id: string): Promise<boolean> {
+  const users = await readUsers();
+  const filtered = users.filter((u) => u.id !== id);
+  if (filtered.length === users.length) return false;
+  await writeUsers(filtered);
+  return true;
 }
