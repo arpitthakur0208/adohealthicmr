@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 
 /**
  * Generate a 6-digit OTP
@@ -136,7 +137,7 @@ export const sendOTPEmail = async (email: string, otp: string): Promise<void> =>
 };
 
 /**
- * Send notification email about an answer submission
+ * Send notification email about an answer submission using SendGrid
  */
 export const sendAnswerNotification = async (to: string, payload: {
   userId: string;
@@ -146,8 +147,14 @@ export const sendAnswerNotification = async (to: string, payload: {
   answer: string;
   isCorrect?: boolean;
 }): Promise<void> => {
-  const gmailUser = process.env.GMAIL_USER;
-  const gmailPass = process.env.GMAIL_PASS;
+  const sendgridApiKey = process.env.SENDGRID_API_KEY;
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'noreply@adohealthicmr.com';
+
+  if (!sendgridApiKey) {
+    console.warn('SendGrid API key not configured — logging answer notification instead of sending');
+    console.log('Answer notification:', { to, ...payload });
+    return;
+  }
 
   const subject = `New answer submitted by ${payload.userId}`;
   const correctness = payload.isCorrect === undefined ? 'Unknown' : payload.isCorrect ? 'Correct' : 'Incorrect';
@@ -167,27 +174,17 @@ export const sendAnswerNotification = async (to: string, payload: {
 
   const text = `New answer submitted by ${payload.userId}\nModule: ${payload.moduleId}\nQuestion: ${payload.questionId}\nAnswer: ${payload.answer}\nResult: ${correctness}`;
 
-  if (!gmailUser || !gmailPass) {
-    console.warn('Gmail not configured — logging answer notification instead of sending');
-    console.log('Answer notification:', { to, ...payload, correctness });
-    return;
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: gmailUser, pass: gmailPass.trim() },
-    });
-    await transporter.verify();
-    await transporter.sendMail({
-      from: `"ADO Health ICMR" <${gmailUser}>`,
+    sgMail.setApiKey(sendgridApiKey);
+    await sgMail.send({
       to,
+      from: fromEmail,
       subject,
       html,
       text,
     });
-    console.log(`Answer notification sent to ${to}`);
+    console.log(`Answer notification sent to ${to} via SendGrid`);
   } catch (err) {
-    console.error('Failed to send answer notification', err);
+    console.error('Failed to send answer notification via SendGrid:', err);
   }
 };
