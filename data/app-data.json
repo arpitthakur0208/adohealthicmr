@@ -9,14 +9,12 @@
     {
       "id": 2,
       "title": "Module 2&3 ( Tobacco & Alcohol)",
-      "description": "mod 2",
-      "color": "blue"
+      "description": "Module 2&3"
     },
     {
       "id": 3,
       "title": "Module 4  (Unhealthy Diet)",
-      "description": "Module 4 ",
-      "color": "green"
+      "description": "Module 4"
     },
     {
       "id": 4,
@@ -828,8 +826,5 @@
         "correctAnswer": 1
       }
     ]
-  },
-  "answers": {},
-  "lastUpdated": "2026-01-22T06:22:57.733Z",
-  "savedAt": "2026-01-22T06:22:57.734Z"
+  }
 }

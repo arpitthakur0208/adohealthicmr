@@ -12,7 +12,7 @@ export async function GET() {
       const data = await res.json();
       return NextResponse.json(data, { status: res.status });
     }
-    const modules = getModules();
+    const modules = await getModules();
     return NextResponse.json({ success: true, modules });
   } catch (error) {
     console.error('Error fetching modules:', error);
@@ -32,7 +32,7 @@ export const POST = requireAdmin(async (request: NextRequest) => {
     if (!id || !title || !description || !color) {
       return NextResponse.json({ error: 'All fields (id, title, description, color) are required' }, { status: 400 });
     }
-    const newModule = createModule({ id, title, description, color });
+    const newModule = await createModule({ id, title, description, color });
     return NextResponse.json({ success: true, message: 'Module created successfully', module: newModule }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

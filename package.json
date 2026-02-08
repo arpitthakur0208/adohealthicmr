@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "migrate": "tsx src/scripts/migrate-data.ts",
+    "migrate-pg": "tsx src/scripts/migrate-to-postgres.ts",
     "create-admin": "tsx src/scripts/create-admin.ts",
     "db:init": "tsx src/scripts/db-init.ts",
     "set-default-admin": "tsx src/scripts/set-default-admin.ts",

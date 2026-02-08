@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const moduleId = searchParams.get('moduleId');
     const moduleIdNum = moduleId ? parseInt(moduleId) : undefined;
-    const questions = getQuestions(isNaN(moduleIdNum as number) ? undefined : moduleIdNum);
+    const questions = await getQuestions(isNaN(moduleIdNum as number) ? undefined : moduleIdNum);
     return NextResponse.json({ success: true, questions });
   } catch (error) {
     console.error('Error fetching questions:', error);
@@ -49,7 +49,7 @@ export const POST = requireAdmin(async (request: NextRequest) => {
         { status: 400 }
       );
     }
-    const newQuestion = createQuestion({ id, moduleId, question, options, correctAnswer });
+    const newQuestion = await createQuestion({ id, moduleId, question, options, correctAnswer });
     return NextResponse.json(
       { success: true, message: 'Question created successfully', question: newQuestion },
       { status: 201 }

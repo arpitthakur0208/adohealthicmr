@@ -1317,6 +1317,10 @@ export default function Home() {
           setShowUserLogin(true);
           setLoginMode('user');
         }}
+        onAdminLoginClick={() => {
+          setShowUserLogin(true);
+          setLoginMode('admin');
+        }}
         onLogout={() => {
           if (isUserLoggedIn) handleUserLogout();
           if (isAdmin) handleAdminLogout();

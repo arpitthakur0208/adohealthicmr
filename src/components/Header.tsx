@@ -9,11 +9,12 @@ interface HeaderProps {
   isAdmin: boolean;
   userName: string;
   onLoginClick: () => void;
+  onAdminLoginClick?: () => void;
   onLogout: () => void;
   onModulesClick?: () => void;
 }
 
-export default function Header({ isUserLoggedIn, isAdmin, userName, onLoginClick, onLogout, onModulesClick }: HeaderProps) {
+export default function Header({ isUserLoggedIn, isAdmin, userName, onLoginClick, onAdminLoginClick, onLogout, onModulesClick }: HeaderProps) {
   return (
     <header className="sticky top-0 left-0 right-0 z-[100] bg-blue-800 backdrop-blur-md border-b-2 border-yellow-500 shadow-lg">
       <div className="max-w-8xl mx-auto px-2 sm:px-4 md:px-8 py-2">
@@ -94,17 +95,31 @@ export default function Header({ isUserLoggedIn, isAdmin, userName, onLoginClick
               </button>
             </>
           ) : (
-            <button
+            <div className="flex gap-1.5 sm:gap-2">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onAdminLoginClick?.();
+                }}
+                className="px-2 py-1 sm:px-3 sm:py-1.5 bg-yellow-600 text-slate-900 text-xs font-semibold rounded-lg hover:bg-yellow-500 border-2 border-yellow-500 transition-all duration-200 shadow-lg hover:shadow-xl cursor-pointer relative z-50"
+                type="button"
+                title="Admin Login"
+              >
+                Admin
+              </button>
+              <button
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   onLoginClick();
                 }}
-                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-yellow-500 text-slate-900 text-xs font-semibold rounded-lg hover:bg-yellow-400 border-2 border-yellow-400 transition-all duration-200 shadow-lg hover:shadow-xl cursor-pointer relative z-50"
+                className="px-2 py-1 sm:px-3 sm:py-1.5 bg-yellow-500 text-slate-900 text-xs font-semibold rounded-lg hover:bg-yellow-400 border-2 border-yellow-400 transition-all duration-200 shadow-lg hover:shadow-xl cursor-pointer relative z-50"
                 type="button"
-            >
-              Login
-            </button>
+              >
+                Login
+              </button>
+            </div>
           )}
           </div>
         </div>
