@@ -5,9 +5,12 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { query } from '@/lib/pg-client';
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'app-data.json');
 const ANSWERS_FILE = path.join(process.cwd(), 'data', 'answers.json');
+const VIDEOS_FILE = path.join(process.cwd(), 'data', 'videos.json');
+const USERS_FILE = path.join(process.cwd(), 'data', 'users.json');
 
 // --- Types ---
 export interface ModuleRecord {
@@ -63,7 +66,7 @@ export interface LoginHistoryRecord {
   userAgent: string;
 }
 
-// --- In-memory stores ---
+// --- In-memory stores (used when Postgres not configured) ---
 let modules: ModuleRecord[] = [];
 let questionsByModule: Record<string, QuestionRecord[]> = {};
 const answersStore: AnswerRecord[] = [];
@@ -72,9 +75,10 @@ const usersStore = new Map<string, UserRecord>();
 const loginHistoryStore: LoginHistoryRecord[] = [];
 
 let dataLoaded = false;
+const USE_PG = !!process.env.DATABASE_URL;
 
 function loadData() {
-  if (dataLoaded) return;
+  if (dataLoaded || USE_PG) return;
   try {
     const raw = fs.readFileSync(DATA_FILE, 'utf8');
     const data = JSON.parse(raw);
@@ -83,16 +87,51 @@ function loadData() {
     if (q && typeof q === 'object') {
       questionsByModule = q;
     }
-    // Default admin (password: Welcome@25) - bcrypt hash
-    const bcrypt = require('bcryptjs');
-    const defaultHash = bcrypt.hashSync('Welcome@25', 10);
-    usersStore.set('adohealthicmr', {
-      id: 'admin-1',
-      username: 'adohealthicmr',
-      email: 'admin@adohealthicmr.com',
-      passwordHash: defaultHash,
-      role: 'admin',
-    });
+    // Attempt to load persisted videos
+    try {
+      const videosRaw = fs.readFileSync(VIDEOS_FILE, 'utf8');
+      const videosArr = JSON.parse(videosRaw);
+      if (Array.isArray(videosArr)) {
+        videosStore.length = 0;
+        for (const v of videosArr) {
+          videosStore.push({
+            moduleId: v.moduleId,
+            videoType: v.videoType,
+            videoId: v.videoId,
+            preview: v.preview,
+            fileName: v.fileName,
+            fileSize: v.fileSize,
+            fileUrl: v.fileUrl,
+            uploadedBy: v.uploadedBy,
+          });
+        }
+      }
+    } catch (e) {
+      // No videos file yet or invalid - leave store as is
+    }
+
+    // Attempt to load persisted users
+    try {
+      const usersRaw = fs.readFileSync(USERS_FILE, 'utf8');
+      const usersArr = JSON.parse(usersRaw);
+      if (Array.isArray(usersArr)) {
+        usersStore.clear();
+        for (const u of usersArr) {
+          // Expect stored shape: { id, username, email, passwordHash, role }
+          if (u && u.username) {
+            usersStore.set(u.username, {
+              id: u.id,
+              username: u.username,
+              email: u.email,
+              passwordHash: u.passwordHash,
+              role: u.role,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      // No users file yet or invalid - leave store as is
+    }
     // Load persisted answers
     try {
       const answersRaw = fs.readFileSync(ANSWERS_FILE, 'utf8');
@@ -117,55 +156,106 @@ function loadData() {
     console.warn('Store: could not load app-data.json', e);
     modules = [];
     questionsByModule = {};
+    // In case of missing app-data.json we'll still ensure a default admin later
+  }
+  // Ensure default admin exists (password: Welcome@25) - bcrypt hash
+  try {
     const bcrypt = require('bcryptjs');
     const defaultHash = bcrypt.hashSync('Welcome@25', 10);
-    usersStore.set('adohealthicmr', {
-      id: 'admin-1',
-      username: 'adohealthicmr',
-      email: 'admin@adohealthicmr.com',
-      passwordHash: defaultHash,
-      role: 'admin',
-    });
+    if (!usersStore.has('adohealthicmr')) {
+      usersStore.set('adohealthicmr', {
+        id: 'admin-1',
+        username: 'adohealthicmr',
+        email: 'admin@adohealthicmr.com',
+        passwordHash: defaultHash,
+        role: 'admin',
+      });
+    }
+  } catch (e) {
+    // ignore bcrypt errors
   }
+
   dataLoaded = true;
 }
 
 // --- Modules ---
-export function getModules(): ModuleRecord[] {
+export async function getModules(): Promise<ModuleRecord[]> {
+  if (USE_PG) {
+    const res = await query('SELECT id, title, description, color FROM modules ORDER BY id');
+    return res.rows.map((r: any) => ({ id: r.id, title: r.title, description: r.description, color: r.color }));
+  }
   loadData();
   return [...modules].sort((a, b) => a.id - b.id);
 }
 
-export function getModuleById(id: number): ModuleRecord | undefined {
+export async function getModuleById(id: number): Promise<ModuleRecord | undefined> {
+  if (USE_PG) {
+    const res = await query('SELECT id, title, description, color FROM modules WHERE id = $1', [id]);
+    const row = res.rows[0];
+    return row ? { id: row.id, title: row.title, description: row.description, color: row.color } : undefined;
+  }
   loadData();
   return modules.find((m) => m.id === id);
 }
 
-export function createModule(data: ModuleRecord): ModuleRecord {
+export async function createModule(data: ModuleRecord): Promise<ModuleRecord> {
+  if (USE_PG) {
+    await query(
+      `INSERT INTO modules (id, title, description, color) VALUES ($1,$2,$3,$4)`,
+      [data.id, data.title, data.description, data.color]
+    );
+    return data;
+  }
   loadData();
   if (modules.some((m) => m.id === data.id)) throw new Error(`Module with ID ${data.id} already exists`);
   modules.push({ ...data });
+  persistData();
   return data;
 }
 
-export function updateModule(id: number, updates: Partial<Omit<ModuleRecord, 'id'>>): ModuleRecord | null {
+export async function updateModule(id: number, updates: Partial<Omit<ModuleRecord, 'id'>>): Promise<ModuleRecord | null> {
+  if (USE_PG) {
+    const res = await query(
+      `UPDATE modules SET title = COALESCE($1,title), description = COALESCE($2,description), color = COALESCE($3,color) WHERE id = $4 RETURNING id, title, description, color`,
+      [updates.title ?? null, updates.description ?? null, updates.color ?? null, id]
+    );
+    const row = res.rows[0];
+    return row ? { id: row.id, title: row.title, description: row.description, color: row.color } : null;
+  }
   loadData();
   const i = modules.findIndex((m) => m.id === id);
   if (i === -1) return null;
   modules[i] = { ...modules[i], ...updates };
+  persistData();
   return modules[i];
 }
 
-export function deleteModule(id: number): boolean {
+export async function deleteModule(id: number): Promise<boolean> {
+  if (USE_PG) {
+    const res = await query('DELETE FROM modules WHERE id = $1', [id]);
+    return res.rowCount > 0;
+  }
   loadData();
   const i = modules.findIndex((m) => m.id === id);
   if (i === -1) return false;
   modules.splice(i, 1);
+  persistData();
   return true;
 }
 
 // --- Questions ---
-export function getQuestions(moduleId?: number): QuestionRecord[] {
+export async function getQuestions(moduleId?: number): Promise<QuestionRecord[]> {
+  if (USE_PG) {
+    const params: any[] = [];
+    let sql = 'SELECT id, module_id, question, options, correct_answer FROM questions';
+    if (moduleId != null) {
+      sql += ' WHERE module_id = $1';
+      params.push(moduleId);
+    }
+    sql += ' ORDER BY module_id, id';
+    const res = await query(sql, params);
+    return res.rows.map((r: any) => ({ id: r.id, moduleId: r.module_id, question: r.question, options: r.options || [], correctAnswer: r.correct_answer }));
+  }
   loadData();
   if (moduleId != null) {
     const list = questionsByModule[String(moduleId)] || [];
@@ -180,37 +270,66 @@ export function getQuestions(moduleId?: number): QuestionRecord[] {
   return all.sort((a, b) => a.moduleId - b.moduleId || a.id - b.id);
 }
 
-export function getQuestionById(id: number, moduleId: number): QuestionRecord | undefined {
+export async function getQuestionById(id: number, moduleId: number): Promise<QuestionRecord | undefined> {
+  if (USE_PG) {
+    const res = await query('SELECT id, module_id, question, options, correct_answer FROM questions WHERE id = $1 AND module_id = $2', [id, moduleId]);
+    const row = res.rows[0];
+    if (!row) return undefined;
+    return { id: row.id, moduleId: row.module_id, question: row.question, options: row.options || [], correctAnswer: row.correct_answer };
+  }
   loadData();
   const list = questionsByModule[String(moduleId)] || [];
   const q = list.find((x) => x.id === id);
   return q ? { ...q, moduleId } : undefined;
 }
 
-export function createQuestion(data: QuestionRecord): QuestionRecord {
+export async function createQuestion(data: QuestionRecord): Promise<QuestionRecord> {
+  if (USE_PG) {
+    await query(
+      'INSERT INTO questions (id, module_id, question, options, correct_answer) VALUES ($1,$2,$3,$4,$5)',
+      [data.id, data.moduleId, data.question || '', JSON.stringify(data.options || []), data.correctAnswer ?? null]
+    );
+    return data;
+  }
   loadData();
   const key = String(data.moduleId);
   if (!questionsByModule[key]) questionsByModule[key] = [];
   if (questionsByModule[key].some((q) => q.id === data.id)) throw new Error(`Question with ID ${data.id} already exists`);
   questionsByModule[key].push({ ...data });
+  persistData();
   return data;
 }
 
-export function updateQuestion(id: number, moduleId: number, updates: Partial<Omit<QuestionRecord, 'id' | 'moduleId'>>): QuestionRecord | null {
+export async function updateQuestion(id: number, moduleId: number, updates: Partial<Omit<QuestionRecord, 'id' | 'moduleId'>>): Promise<QuestionRecord | null> {
+  if (USE_PG) {
+    const res = await query(
+      'UPDATE questions SET question = COALESCE($1,question), options = COALESCE($2,options), correct_answer = COALESCE($3,correct_answer) WHERE id = $4 AND module_id = $5 RETURNING id, module_id, question, options, correct_answer',
+      [updates.question ?? null, updates.options ? JSON.stringify(updates.options) : null, updates.correctAnswer !== undefined ? updates.correctAnswer : null, id, moduleId]
+    );
+    const row = res.rows[0];
+    if (!row) return null;
+    return { id: row.id, moduleId: row.module_id, question: row.question, options: row.options || [], correctAnswer: row.correct_answer };
+  }
   loadData();
   const list = questionsByModule[String(moduleId)] || [];
   const i = list.findIndex((q) => q.id === id);
   if (i === -1) return null;
   list[i] = { ...list[i], ...updates };
+  persistData();
   return list[i];
 }
 
-export function deleteQuestion(id: number, moduleId: number): boolean {
+export async function deleteQuestion(id: number, moduleId: number): Promise<boolean> {
+  if (USE_PG) {
+    const res = await query('DELETE FROM questions WHERE id = $1 AND module_id = $2', [id, moduleId]);
+    return res.rowCount > 0;
+  }
   loadData();
   const list = questionsByModule[String(moduleId)] || [];
   const i = list.findIndex((q) => q.id === id);
   if (i === -1) return false;
   list.splice(i, 1);
+  persistData();
   return true;
 }
 
@@ -248,6 +367,43 @@ function persistAnswers(): void {
   }
 }
 
+function persistVideos(): void {
+  try {
+    const dir = path.dirname(VIDEOS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const out = videosStore.map((v) => ({
+      moduleId: v.moduleId,
+      videoType: v.videoType,
+      videoId: v.videoId,
+      preview: v.preview,
+      fileName: v.fileName,
+      fileSize: v.fileSize,
+      fileUrl: v.fileUrl,
+      uploadedBy: v.uploadedBy,
+    }));
+    fs.writeFileSync(VIDEOS_FILE, JSON.stringify(out, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('Store: could not persist videos.json', e);
+  }
+}
+
+function persistUsers(): void {
+  try {
+    const dir = path.dirname(USERS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const out = Array.from(usersStore.values()).map((u) => ({
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      passwordHash: u.passwordHash,
+      role: u.role,
+    }));
+    fs.writeFileSync(USERS_FILE, JSON.stringify(out, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('Store: could not persist users.json', e);
+  }
+}
+
 export function upsertAnswer(data: { userId: string; moduleId: number; questionId: number; answer: string; isCorrect?: boolean }): AnswerRecord {
   loadData();
   const existing = answersStore.findIndex(
@@ -278,6 +434,7 @@ export function getVideos(moduleId?: number, videoType?: string): VideoRecord[] 
 export function createVideo(data: VideoRecord): VideoRecord {
   loadData();
   videosStore.push({ ...data });
+  persistVideos();
   return data;
 }
 
@@ -291,6 +448,7 @@ export function updateVideo(
   const i = videosStore.findIndex((v) => v.moduleId === moduleId && v.videoType === videoType && v.videoId === videoId);
   if (i === -1) return null;
   videosStore[i] = { ...videosStore[i], ...updates };
+  persistVideos();
   return videosStore[i];
 }
 
@@ -299,6 +457,7 @@ export function deleteVideo(moduleId: number, videoType: string, videoId: number
   const i = videosStore.findIndex((v) => v.moduleId === moduleId && v.videoType === videoType && v.videoId === videoId);
   if (i === -1) return false;
   videosStore.splice(i, 1);
+  persistVideos();
   return true;
 }
 
@@ -342,6 +501,7 @@ export function createUser(data: Omit<UserRecord, 'passwordHash'> & { password: 
   };
   if (usersStore.has(data.username)) throw new Error(`User ${data.username} already exists`);
   usersStore.set(data.username, record);
+  persistUsers();
   return record;
 }
 
@@ -373,6 +533,7 @@ export function updateUserById(
   }
   usersStore.delete(oldUsername);
   usersStore.set(next.username, next);
+  persistUsers();
   return next;
 }
 
@@ -381,6 +542,7 @@ export function deleteUserById(id: string): boolean {
   const user = getUserById(id);
   if (!user) return false;
   usersStore.delete(user.username);
+  persistUsers();
   return true;
 }
 

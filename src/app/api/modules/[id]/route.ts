@@ -21,7 +21,7 @@ export async function GET(
     if (isNaN(moduleId)) {
       return NextResponse.json({ error: 'Invalid module ID' }, { status: 400 });
     }
-    const moduleData = getModuleById(moduleId);
+    const moduleData = await getModuleById(moduleId);
     if (!moduleData) {
       return NextResponse.json({ error: 'Module not found' }, { status: 404 });
     }
@@ -60,7 +60,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid module ID' }, { status: 400 });
     }
     const { title, description, color } = await request.json();
-    const updatedModule = updateModule(moduleId, { title, description, color });
+    const updatedModule = await updateModule(moduleId, { title, description, color });
     if (!updatedModule) {
       return NextResponse.json({ error: 'Module not found' }, { status: 404 });
     }
@@ -101,7 +101,7 @@ export async function DELETE(
     if (isNaN(moduleId)) {
       return NextResponse.json({ error: 'Invalid module ID' }, { status: 400 });
     }
-    const ok = deleteModule(moduleId);
+    const ok = await deleteModule(moduleId);
     if (!ok) {
       return NextResponse.json({ error: 'Module not found' }, { status: 404 });
     }
