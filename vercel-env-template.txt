@@ -1,0 +1,8 @@
+# Vercel Environment Variables
+# Copy these to Vercel Dashboard → Settings → Environment Variables
+
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/adohealthicmr
+JWT_SECRET=ce39c90595c7b3b0be0d6ad528583962586aeabf13c8ecc3703d545823e51fac
+NODE_ENV=production
+WEB3FORMS_ACCESS_KEY=your-web3forms-key-here
+NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
