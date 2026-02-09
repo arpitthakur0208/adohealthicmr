@@ -158,5 +158,75 @@
     "answer": "B. Regular exercise",
     "isCorrect": true,
     "submittedAt": "2026-02-03T04:22:07.205Z"
+  },
+  {
+    "userId": "user-arpit-gmail-com",
+    "moduleId": 3,
+    "questionId": 1,
+    "answer": "A. Juicy, Unhealthy, Nutritious, Carbonated, Sweet",
+    "submittedAt": "2026-02-08T15:18:25.388Z"
+  },
+  {
+    "userId": "user-arpit-gmail-com",
+    "moduleId": 3,
+    "questionId": 2,
+    "answer": "C. Fresh mango",
+    "submittedAt": "2026-02-08T15:18:25.393Z"
+  },
+  {
+    "userId": "user-arpit-gmail-com",
+    "moduleId": 3,
+    "questionId": 3,
+    "answer": "C. Anaemia",
+    "submittedAt": "2026-02-08T15:18:25.414Z"
+  },
+  {
+    "userId": "user-arpit-gmail-com",
+    "moduleId": 3,
+    "questionId": 4,
+    "answer": "B. 50%",
+    "submittedAt": "2026-02-08T15:18:25.415Z"
+  },
+  {
+    "userId": "user-arpit-gmail-com",
+    "moduleId": 3,
+    "questionId": 5,
+    "answer": "C. Pulses",
+    "submittedAt": "2026-02-08T15:18:25.416Z"
+  },
+  {
+    "userId": "user-arpit-gmail-com",
+    "moduleId": 3,
+    "questionId": 6,
+    "answer": "C. 50-60g",
+    "submittedAt": "2026-02-08T15:18:25.416Z"
+  },
+  {
+    "userId": "user-arpit-gmail-com",
+    "moduleId": 3,
+    "questionId": 7,
+    "answer": "D. 6-8",
+    "submittedAt": "2026-02-08T15:18:27.148Z"
+  },
+  {
+    "userId": "user-arpit-gmail-com",
+    "moduleId": 3,
+    "questionId": 8,
+    "answer": "B. Nutrient deficiencies",
+    "submittedAt": "2026-02-08T15:18:27.149Z"
+  },
+  {
+    "userId": "user-arpit-gmail-com",
+    "moduleId": 3,
+    "questionId": 9,
+    "answer": "A. Fruits",
+    "submittedAt": "2026-02-08T15:18:27.149Z"
+  },
+  {
+    "userId": "user-arpit-gmail-com",
+    "moduleId": 3,
+    "questionId": 10,
+    "answer": "C. Once a month",
+    "submittedAt": "2026-02-08T15:18:27.150Z"
   }
 ]

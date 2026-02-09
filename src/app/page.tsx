@@ -1060,8 +1060,14 @@ export default function Home() {
     }
 
     // Warn about very large files (videos are stored in IndexedDB which handles large files well)
-    const maxVideoSize = 200 * 1024 * 1024; // 200MB (IndexedDB can handle much larger files)
+    const maxVideoSize = 2048 * 1024 * 1024; // 2GB (IndexedDB can handle large files)
     if (file.size > maxVideoSize) {
+      alert(`Video file is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 2GB. Please compress the video and try again.`);
+      return;
+    }
+    // Warn about large files that might cause performance issues
+    const largeFileThreshold = 1024 * 1024 * 1024; // 1GB
+    if (file.size > largeFileThreshold) {
       const proceed = confirm(`Video file is large (${(file.size / 1024 / 1024).toFixed(2)}MB). Large videos may cause performance issues. Continue?`);
       if (!proceed) return;
     }
@@ -2351,7 +2357,7 @@ export default function Home() {
                                       <p className="mb-2 text-sm text-gray-500">
                                         <span className="font-semibold">Click to upload</span> or drag and drop
                                       </p>
-                                      <p className="text-xs text-gray-500">MP4, AVI, MOV (MAX. 100MB each)</p>
+                                      <p className="text-xs text-gray-500">MP4, AVI, MOV (MAX. 2GB each)</p>
                                     </div>
                                   </label>
                                 </div>
