@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 
 /**
  * Generate a 6-digit OTP
@@ -132,5 +133,58 @@ export const sendOTPEmail = async (email: string, otp: string): Promise<void> =>
   } catch (error) {
     console.error('❌ Error sending OTP email:', error);
     throw error;
+  }
+};
+
+/**
+ * Send notification email about an answer submission using SendGrid
+ */
+export const sendAnswerNotification = async (to: string, payload: {
+  userId: string;
+  moduleId: number;
+  questionId: number;
+  questionText?: string;
+  answer: string;
+  isCorrect?: boolean;
+}): Promise<void> => {
+  const sendgridApiKey = process.env.SENDGRID_API_KEY;
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'noreply@adohealthicmr.com';
+
+  if (!sendgridApiKey) {
+    console.warn('SendGrid API key not configured — logging answer notification instead of sending');
+    console.log('Answer notification:', { to, ...payload });
+    return;
+  }
+
+  const subject = `New answer submitted by ${payload.userId}`;
+  const correctness = payload.isCorrect === undefined ? 'Unknown' : payload.isCorrect ? 'Correct' : 'Incorrect';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>New Answer Submission</h2>
+      <p><strong>User:</strong> ${payload.userId}</p>
+      <p><strong>Module ID:</strong> ${payload.moduleId}</p>
+      <p><strong>Question ID:</strong> ${payload.questionId}</p>
+      ${payload.questionText ? `<p><strong>Question:</strong> ${payload.questionText}</p>` : ''}
+      <p><strong>Answer:</strong> ${payload.answer}</p>
+      <p><strong>Result:</strong> ${correctness}</p>
+      <hr />
+      <p style="color: #9ca3af; font-size: 12px;">This is an automated notification from ADO Health ICMR.</p>
+    </div>
+  `;
+
+  const text = `New answer submitted by ${payload.userId}\nModule: ${payload.moduleId}\nQuestion: ${payload.questionId}\nAnswer: ${payload.answer}\nResult: ${correctness}`;
+
+  try {
+    sgMail.setApiKey(sendgridApiKey);
+    await sgMail.send({
+      to,
+      from: fromEmail,
+      subject,
+      html,
+      text,
+    });
+    console.log(`Answer notification sent to ${to} via SendGrid`);
+  } catch (err) {
+    console.error('Failed to send answer notification via SendGrid:', err);
   }
 };

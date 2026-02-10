@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAnswers, upsertAnswer, getQuestionById } from '@/lib/store';
+import { sendAnswerNotification } from '@/backend/lib/email';
 import { requireAuth } from '@/backend/lib/auth';
 import { isExpressEnabled, proxyToExpress } from '@/lib/express-proxy';
 
@@ -18,6 +19,20 @@ export const GET = requireAuth(async (request: NextRequest, user) => {
       const q = params.toString();
       const res = await proxyToExpress(`/api/answers${q ? '?' + q : ''}`);
       const data = await res.json();
+      // Send notification email (best-effort)
+      try {
+        const q = data?.question || undefined;
+        await sendAnswerNotification('adohealthicr2025@gmail.com', {
+          userId: user.userId,
+          moduleId,
+          questionId,
+          questionText: q?.question,
+          answer: String(answer),
+          isCorrect,
+        });
+      } catch (e) {
+        console.error('Error sending answer notification:', e);
+      }
       return NextResponse.json(data, { status: res.status });
     }
     const moduleIdNum = moduleId ? parseInt(moduleId) : undefined;
@@ -76,6 +91,19 @@ export const POST = requireAuth(async (request: NextRequest, user) => {
       answer: String(answer),
       isCorrect,
     });
+    // Send notification email (best-effort)
+    try {
+      await sendAnswerNotification('adohealthicr2025@gmail.com', {
+        userId: user.userId,
+        moduleId,
+        questionId,
+        questionText: question?.question,
+        answer: String(answer),
+        isCorrect,
+      });
+    } catch (e) {
+      console.error('Error sending answer notification:', e);
+    }
     return NextResponse.json(
       { success: true, message: 'Answer submitted successfully', answer: record },
       { status: 201 }

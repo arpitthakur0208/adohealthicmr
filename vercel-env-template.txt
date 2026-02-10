@@ -1,8 +1,16 @@
 # Vercel Environment Variables
 # Copy these to Vercel Dashboard → Settings → Environment Variables
 
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/adohealthicmr
+# Database (Postgres)
+DATABASE_URL=postgresql://user:password@host:5432/adohealthicmr
+
+# Authentication
 JWT_SECRET=ce39c90595c7b3b0be0d6ad528583962586aeabf13c8ecc3703d545823e51fac
 NODE_ENV=production
-WEB3FORMS_ACCESS_KEY=your-web3forms-key-here
+
+# Email (SendGrid)
+SENDGRID_API_KEY=your-sendgrid-api-key-here
+SENDGRID_FROM_EMAIL=noreply@yourdomain.com
+
+# Optional
 NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
