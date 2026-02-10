@@ -147,9 +147,6 @@
     "moduleId": 1,
     "questionId": 10,
     "answer": "B. Regular exercise",
-<<<<<<< HEAD
-    "submittedAt": "2026-02-09T13:00:54.651Z"
-=======
     "isCorrect": true,
     "submittedAt": "2026-02-03T04:22:07.205Z"
   },
@@ -222,6 +219,5 @@
     "questionId": 10,
     "answer": "C. Once a month",
     "submittedAt": "2026-02-08T15:18:27.150Z"
->>>>>>> bd28f6aed7588808b777f721a4a790d47124cd5d
   }
 ]
