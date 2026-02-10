@@ -2,43 +2,38 @@
   "modules": [
     {
       "id": 1,
-      "title": "Module 1 (Introduction to NCDs)",
-      "description": "Understanding Non-Communicable Diseases and their impact on adolescent health. This module covers the basics of NCDs, the Big-7 risk factors, and how to identify and prevent these diseases.",
-      "color": "pink"
+      "title": "Module 1 ( Introduction to NCDs )",
+      "description": "Introduction to Non-Communicable Diseases (NCDs)"
     },
     {
       "id": 2,
-      "title": "Module 2&3 ( Tobacco & Alcohol)",
-      "description": "Module 2&3"
+      "title": "Module 2 & 3 ( Tobacco & Alcohol )",
+      "description": "Your Health, Your Choice"
     },
     {
       "id": 3,
-      "title": "Module 4  (Unhealthy Diet)",
-      "description": "Module 4"
+      "title": "Module 4  ( Unhealthy Diet )",
+      "description": "Unhealthy Diet & NCDs"
     },
     {
       "id": 4,
-      "title": "Module 5 ( Physical Activity) ",
-      "description": "Module 5",
-      "color": "purple"
+      "title": "Module 5 ( Physical Activity ) ",
+      "description": "Stay Active, Beat NCDs"
     },
     {
       "id": 5,
-      "title": "Module 6 ( Sedentary Screen Time)",
-      "description": "Module 6.",
-      "color": "orange"
+      "title": "Module 6 ( Sedentary Screen Time )",
+      "description": "Sedentary Screentime"
     },
     {
       "id": 6,
-      "title": "Module 7 ( Sleep Quality)",
-      "description": "Module 7",
-      "color": "indigo"
+      "title": "Module 7 ( Sleep Quality )",
+      "description": "Good Sleep, Great Health"
     },
     {
       "id": 7,
       "title": "Module 8 ( Stress )",
-      "description": "Module 8",
-      "color": "teal"
+      "description": "Coping & Thriving"
     }
   ],
   "questions": {
