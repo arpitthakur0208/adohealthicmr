@@ -21,15 +21,27 @@ export const GET = requireAuth(async (request: NextRequest, user) => {
       const data = await res.json();
       // Send notification email (best-effort)
       try {
-        const q = data?.question || undefined;
-        await sendAnswerNotification('adohealthicr2025@gmail.com', {
-          userId: user.userId,
-          moduleId,
-          questionId,
-          questionText: q?.question,
-          answer: String(answer),
-          isCorrect,
-        });
+        // Try to extract an answer record from the proxied response
+        const answerRecord =
+          data?.answer ?? (Array.isArray(data?.answers) && data.answers.length ? data.answers[0] : undefined);
+        const q = answerRecord?.question ?? data?.question;
+        const moduleIdNum =
+          answerRecord?.moduleId ?? (moduleId ? (isNaN(parseInt(moduleId, 10)) ? undefined : parseInt(moduleId, 10)) : undefined);
+        const questionIdNum = answerRecord?.questionId ?? (answerRecord?.question?.id ?? undefined);
+        const answerVal = answerRecord?.answer ?? undefined;
+        const isCorrect = answerRecord?.isCorrect ?? undefined;
+
+        // Only send notification when we have numeric moduleId and questionId
+        if (typeof moduleIdNum === 'number' && typeof questionIdNum === 'number') {
+          await sendAnswerNotification('adohealthicr2025@gmail.com', {
+            userId: user.userId,
+            moduleId: moduleIdNum,
+            questionId: questionIdNum,
+            questionText: q?.question,
+            answer: String(answerVal),
+            isCorrect,
+          });
+        }
       } catch (e) {
         console.error('Error sending answer notification:', e);
       }
