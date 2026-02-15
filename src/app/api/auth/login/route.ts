@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
         return response;
       }
       return NextResponse.json(
-        { error: 'Database not configured', message: 'Set DATABASE_URL in .env and ensure PostgreSQL is running. Default admin: adohealthicmr / Welcome@25' },
+        { error: 'Database not configured', message: 'Invalid password.' },
         { status: 503 }
       );
     }
