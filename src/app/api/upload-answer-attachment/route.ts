@@ -4,14 +4,9 @@ import { uploadImage, CloudinaryUploadResult } from '@/lib/cloudinary';
 
 export const dynamic = 'force-dynamic';
 
-// Increase payload size limit for image uploads
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-  },
-};
+// Note: page-level `config` is deprecated for route handlers in newer Next.js versions.
+// If you need to set a body size limit or other route segment config, move it to
+// a route segment config file as documented by Next.js.
 
 export const POST = requireAuth(async (request: NextRequest, user) => {
   try {
