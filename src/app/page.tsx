@@ -370,16 +370,15 @@ export default function Home() {
         try {
           const answersResponse = await getAnswers();
           if (answersResponse.success && answersResponse.data?.answers) {
-            const apiAnswers: {
-              [moduleId: number]: { [questionId: number]: string };
-            } = {};
+            // Existing answers in DB are treated as "pre" for UI purposes
+            const preMap: { [moduleId: number]: { [questionId: number]: string } } = {};
             answersResponse.data.answers.forEach((a: any) => {
-              if (!apiAnswers[a.moduleId]) {
-                apiAnswers[a.moduleId] = {};
+              if (!preMap[a.moduleId]) {
+                preMap[a.moduleId] = {};
               }
-              apiAnswers[a.moduleId][a.questionId] = a.answer;
+              preMap[a.moduleId][a.questionId] = a.answer;
             });
-            setSavedAnswers(apiAnswers);
+            setSavedPreAnswers(preMap);
           }
         } catch (error) {
           console.debug("Could not load answers:", error);
@@ -971,7 +970,11 @@ export default function Home() {
   >(undefined);
 
   // Saved answers state - to allow editing submitted answers
-  const [savedAnswers, setSavedAnswers] = useState<{
+  // Pre and Post are tracked separately in UI so switching between them doesn't copy selections
+  const [savedPreAnswers, setSavedPreAnswers] = useState<{
+    [moduleId: number]: { [questionId: number]: string };
+  }>({});
+  const [savedPostAnswers, setSavedPostAnswers] = useState<{
     [moduleId: number]: { [questionId: number]: string };
   }>({});
 
@@ -1917,8 +1920,19 @@ export default function Home() {
         saveOk = !!result.success;
 
         if (saveOk) {
-          // Update local state so UI shows "Update & Resubmit"
-          setSavedAnswers((prev) => ({ ...prev, [moduleId]: answersToSave }));
+          // Decide whether we're in Pre or Post mode for this module in the UI
+          const isPostView = moduleView[moduleId] === "questions_post";
+          if (isPostView) {
+            setSavedPostAnswers((prev) => ({
+              ...prev,
+              [moduleId]: answersToSave,
+            }));
+          } else {
+            setSavedPreAnswers((prev) => ({
+              ...prev,
+              [moduleId]: answersToSave,
+            }));
+          }
         }
       } catch (err) {
         console.error("Error saving bulk answers to API:", err);
@@ -3464,7 +3478,12 @@ export default function Home() {
                                 </div>
 
                                 <div className="space-y-3">
-                                  {(moduleQuestions[module.id] || []).map((q) => {
+                                {(moduleQuestions[module.id] || []).map((q) => {
+                                  const isPostView =
+                                    moduleView[module.id] === "questions_post";
+                                  const answersMap = isPostView
+                                    ? savedPostAnswers
+                                    : savedPreAnswers;
                                     const isEditing =
                                       editingQuestion?.moduleId === module.id &&
                                       editingQuestion?.questionId === q.id;
@@ -3717,11 +3736,11 @@ export default function Home() {
                                                     name={`question-${q.id}`}
                                                     value={option}
                                                     required
-                                                    defaultChecked={
-                                                      savedAnswers[module.id]?.[
-                                                        q.id
-                                                      ] === option
-                                                    }
+                                                  defaultChecked={
+                                                    answersMap[module.id]?.[
+                                                      q.id
+                                                    ] === option
+                                                  }
                                                     className="w-5 h-5 text-pink-600 border-gray-300 focus:ring-pink-500 focus:ring-2 cursor-pointer"
                                                   />
                                                   <span className="text-gray-700 font-medium text-sm flex-1">
@@ -3743,7 +3762,17 @@ export default function Home() {
                                     <span className="text-gray-500 font-medium">
                                       <span className="text-red-500 font-bold text-base leading-none">*</span> Required fields
                                     </span>
-                                    {savedAnswers[module.id] && Object.keys(savedAnswers[module.id]).length > 0 && (
+                                    {(() => {
+                                      const isPostView =
+                                        moduleView[module.id] === "questions_post";
+                                      const map = isPostView
+                                        ? savedPostAnswers
+                                        : savedPreAnswers;
+                                      return (
+                                        map[module.id] &&
+                                        Object.keys(map[module.id]).length > 0
+                                      );
+                                    })() && (
                                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-green-50 text-green-700 text-xs font-bold border border-green-200 shadow-sm">
                                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
@@ -3753,15 +3782,30 @@ export default function Home() {
                                     )}
                                   </div>
 
+                                {isAdmin && (
                                   <div className="flex flex-wrap gap-3 w-full sm:w-auto">
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        const form = document.querySelector("form");
+                                        const form =
+                                          document.querySelector("form");
                                         if (form) form.reset();
-                                        const updatedAnswers = { ...savedAnswers };
-                                        delete updatedAnswers[module.id];
-                                        setSavedAnswers(updatedAnswers);
+                                        const isPostView =
+                                          moduleView[module.id] ===
+                                          "questions_post";
+                                        if (isPostView) {
+                                          setSavedPostAnswers((prev) => {
+                                            const updated = { ...prev };
+                                            delete updated[module.id];
+                                            return updated;
+                                          });
+                                        } else {
+                                          setSavedPreAnswers((prev) => {
+                                            const updated = { ...prev };
+                                            delete updated[module.id];
+                                            return updated;
+                                          });
+                                        }
                                       }}
                                       className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2 bg-white text-slate-600 font-bold text-sm rounded-lg border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
                                     >
@@ -3788,7 +3832,19 @@ export default function Home() {
                                           </svg>
                                           Saving...
                                         </>
-                                      ) : savedAnswers[module.id] && Object.keys(savedAnswers[module.id]).length > 0 ? (
+                                      ) : (() => {
+                                          const isPostView =
+                                            moduleView[module.id] ===
+                                            "questions_post";
+                                          const map = isPostView
+                                            ? savedPostAnswers
+                                            : savedPreAnswers;
+                                          return (
+                                            map[module.id] &&
+                                            Object.keys(map[module.id])
+                                              .length > 0
+                                          );
+                                        })() ? (
                                         <>
                                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -3805,6 +3861,7 @@ export default function Home() {
                                       )}
                                     </button>
                                   </div>
+                                )}
                                 </div>
                               </form>
                             )
