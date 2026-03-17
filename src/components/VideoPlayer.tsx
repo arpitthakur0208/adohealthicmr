@@ -3,7 +3,9 @@
 import React, { useEffect, useRef, useState } from "react";
 
 interface SmartVideoPlayerProps {
-  src?: string;               // defaults to /videos/sample.mp4
+  // Keep backwards compatibility with existing usages that pass `url`
+  url?: string;
+  src?: string;               // preferred prop, defaults to /videos/sample.mp4
   poster?: string;            // optional /images/sample-poster.jpg
   className?: string;
   autoPlay?: boolean;         // defaults to true
@@ -11,7 +13,8 @@ interface SmartVideoPlayerProps {
 }
 
 const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
-  src = "/videos/sample.mp4",
+  url,
+  src,
   poster,
   className = "",
   autoPlay = true,
@@ -25,6 +28,9 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
   const [hasError, setHasError] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // Prefer explicit src, but fall back to legacy `url` prop, then default path.
+  const resolvedSrc = src || url || "/videos/sample.mp4";
 
   // Lazy-load: only when visible
   useEffect(() => {
@@ -135,7 +141,7 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
           onError={handleError}
           controls={!canAutoPlay || hasError}
         >
-          <source src={src} type="video/mp4" />
+          <source src={resolvedSrc} type="video/mp4" />
           {/* Fallback text if video tag not supported */}
           Your browser does not support the video tag.
         </video>
