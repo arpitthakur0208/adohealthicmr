@@ -20,6 +20,10 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
   autoPlay = true,
   loop = true,
 }) => {
+  const isiOS =
+    typeof navigator !== "undefined" &&
+    /iPad|iPhone|iPod/i.test(navigator.userAgent);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isInView, setIsInView] = useState(false);
@@ -40,39 +44,48 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
       if (!input.includes("res.cloudinary.com")) return input;
       if (!input.includes("/video/upload/")) return input;
 
-      // If URL already has codec transforms, keep it.
-      if (
-        input.includes("f_mp4") &&
-        input.toLowerCase().includes("vc_h264") &&
-        input.toLowerCase().includes("ac_aac")
-      ) {
-        return input;
+      const TRANS = "f_mp4,vc_h264,ac_aac,q_auto";
+
+      // Cloudinary URL format after /video/upload/:
+      // - Either: <version>/...  OR  <transforms>/ <version>/...
+      // We replace the first segment after /video/upload/ with our transforms,
+      // preserving the version segment (v123...) if present.
+      const prefixSplit = input.split("/video/upload/");
+      if (prefixSplit.length !== 2) return input;
+      const prefix = prefixSplit[0];
+      const rest = prefixSplit[1]; // e.g. v1712345/abc.mp4 or f_mp4,f_auto,q_auto/v1712345/abc.mp4
+      const segments = rest.split("/").filter(Boolean);
+      if (segments.length < 2) return input;
+
+      const first = segments[0];
+      const remaining = segments.slice(1).join("/");
+
+      const firstIsVersion = /^v\d+/.test(first);
+      if (firstIsVersion) {
+        // version exists, insert transforms before it
+        return `${prefix}/video/upload/${TRANS}/${first}/${remaining.split("/").slice(1).join("/")}`;
       }
 
-      // Remove existing transformation segment only if it's clearly a transformation list.
-      // Heuristic: transformation segments contain ',' (e.g. f_mp4,f_auto,q_auto).
-      const match = input.match(/\/video\/upload\/([^/]+)\//);
-      if (match?.[1]) {
-        const seg = match[1];
-        if (seg.includes(",")) {
-          return input.replace(
-            /\/video\/upload\/[^/]+\//,
-            "/video/upload/f_mp4,vc_h264,ac_aac,q_auto/"
-          );
-        }
-      }
-
-      // Otherwise just insert the transformation right after /video/upload/
-      return input.replace(
-        "/video/upload/",
-        "/video/upload/f_mp4,vc_h264,ac_aac,q_auto/"
-      );
+      // transforms exists in first segment; replace it with ours
+      return `${prefix}/video/upload/${TRANS}/${remaining}`;
     } catch {
       return input;
     }
   };
 
   const playbackSrc = getOptimizedUrl(resolvedSrc);
+
+  // If src changes (e.g. user saves a new upload), reset load/error states.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    setHasError(false);
+    setErrorText(null);
+    setIsPlaying(false);
+    setIsLoaded(false);
+    // Reload metadata for the new source
+    v.load();
+  }, [playbackSrc]);
 
   // Lazy-load: only when visible
   useEffect(() => {
@@ -181,7 +194,8 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
           poster={poster}
           onLoadedMetadata={handleLoadedMetadata}
           onError={handleError}
-          controls={!canAutoPlay || hasError}
+          // iOS sometimes needs controls for better fallback UX.
+          controls={isiOS || !canAutoPlay || hasError}
         >
           <source src={playbackSrc} type="video/mp4" />
           {/* Fallback text if video tag not supported */}
