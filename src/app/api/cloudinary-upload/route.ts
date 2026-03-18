@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
+import { Readable } from 'stream';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import Busboy from 'busboy';
 import cloudinary from '@/lib/cloudinary';
 import { requireAdmin } from '@/backend/lib/auth';
 
@@ -33,6 +35,10 @@ function runFfmpegConvert(inputPath: string, outputPath: string): Promise<void> 
     inputPath,
     '-c:v',
     'libx264',
+    '-crf',
+    '28',
+    '-preset',
+    'fast',
     '-pix_fmt',
     'yuv420p',
     '-c:a',
@@ -104,13 +110,6 @@ function runFfmpegConvert(inputPath: string, outputPath: string): Promise<void> 
   });
 }
 
-async function fileToBuffer(file: File) {
-  // Reads the file into memory once, then writes to disk for FFmpeg.
-  // We still use a strict MAX_UPLOAD_BYTES limit to reduce memory risk.
-  const ab = await file.arrayBuffer();
-  return Buffer.from(ab);
-}
-
 export const POST = requireAdmin(async (request: NextRequest) => {
   let tmpDir: string | undefined;
   let inputPath: string | undefined;
@@ -123,80 +122,140 @@ export const POST = requireAdmin(async (request: NextRequest) => {
         { status: 400 },
       );
     }
+    // Create a temp dir so we can stream the upload to disk (avoids Next's formData buffering limits).
+    tmpDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'adohealthicmr-video-upload-'),
+    );
 
-    const formData = await request.formData();
-    const file = formData.get('file');
-    if (!(file instanceof File)) {
+    const fields: Record<string, string | undefined> = {};
+    let inputFileName: string | undefined;
+    let inputFileMime: string | undefined;
+    let inputFileBytes = 0;
+    let fileTooLarge = false;
+
+    const uploadParseResult = await new Promise<{
+      moduleId?: string;
+      videoType?: string;
+      folder?: string;
+    }>((resolve, reject) => {
+      const headers = Object.fromEntries(request.headers.entries());
+      const bb = Busboy({
+        headers,
+        limits: {
+          fileSize: MAX_UPLOAD_BYTES,
+          files: 1,
+        },
+      });
+
+      bb.on('field', (name, value) => {
+        fields[name] = typeof value === 'string' ? value : undefined;
+      });
+
+      bb.on('file', (fieldname, fileStream, filename, _encoding, mimetype) => {
+        if (fieldname !== 'file') {
+          // Drain unexpected file fields
+          fileStream.resume();
+          return;
+        }
+
+        inputFileName = filename;
+        inputFileMime = mimetype;
+
+        if (!isLikelyVideo(filename, mimetype)) {
+          fileStream.resume();
+          reject(new Error('Invalid file type. Expected `video/*`.'));
+          return;
+        }
+
+        const inputExt = path.extname(filename) || '';
+        inputPath = path.join(tmpDir!, `input${inputExt}`);
+
+        const out = fs.createWriteStream(inputPath);
+        let localBytes = 0;
+
+        fileStream.on('data', (chunk) => {
+          localBytes += chunk.length;
+        });
+
+        out.on('error', reject);
+        fileStream.on('error', reject);
+
+        fileStream.pipe(out);
+
+        out.on('finish', () => {
+          inputFileBytes = localBytes;
+        });
+      });
+
+      // busboy emits 'limit' when a limit is hit (like fileSize)
+      bb.on('limit', () => {
+        fileTooLarge = true;
+        reject(
+          new Error(
+            `File too large. Maximum allowed size is ${(MAX_UPLOAD_BYTES / (1024 * 1024)).toFixed(0)}MB.`,
+          ),
+        );
+      });
+
+      bb.on('error', reject);
+      bb.on('finish', () => {
+        resolve({
+          moduleId: fields.moduleId,
+          videoType: fields.videoType,
+          folder: fields.folder,
+        });
+      });
+
+      // Pipe request stream into busboy
+      const readable = Readable.fromWeb(request.body as any);
+      readable.pipe(bb);
+    });
+
+    if (!inputPath || !inputFileName) {
       return NextResponse.json(
         { success: false, error: 'Missing `file` field.' },
         { status: 400 },
       );
     }
 
-    if (!isLikelyVideo(file.name, file.type)) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid file type. Expected `video/*`.' },
-        { status: 400 },
-      );
-    }
-
-    if (file.size <= 0) {
-      return NextResponse.json(
-        { success: false, error: 'Uploaded file is empty.' },
-        { status: 400 },
-      );
-    }
-
-    if (file.size > MAX_UPLOAD_BYTES) {
+    if (fileTooLarge || inputFileBytes > MAX_UPLOAD_BYTES) {
       return NextResponse.json(
         {
           success: false,
-          error: `File too large. Maximum allowed size is ${(MAX_UPLOAD_BYTES / (1024 * 1024)).toFixed(
-            0,
-          )}MB.`,
+          error: `File too large. Maximum allowed size is ${(MAX_UPLOAD_BYTES / (1024 * 1024)).toFixed(0)}MB.`,
         },
         { status: 413 },
       );
     }
 
     const folder =
-      safeToString(formData.get('folder')) ||
-      safeToString(formData.get('cloudinaryFolder')) ||
-      safeToString(formData.get('moduleId')) ||
+      safeToString(uploadParseResult.folder) ||
+      safeToString(fields.cloudinaryFolder) ||
+      safeToString(fields.moduleId) ||
       'adohealthicmr/videos';
 
-    const moduleId = safeToString(formData.get('moduleId'));
-    const videoType = safeToString(formData.get('videoType'));
+    const moduleId = safeToString(uploadParseResult.moduleId);
+    const videoType = safeToString(uploadParseResult.videoType);
 
     const computedFolder =
-      folder === safeToString(formData.get('moduleId'))
+      folder === safeToString(fields.moduleId)
         ? `adohealthicmr/videos/${moduleId || 'unknown'}/${videoType || 'video'}`
         : folder;
 
-    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'adohealthicmr-video-'));
+    // 1) Generate a new filename with .mp4
+    outputPath = path.join(tmpDir, `output_${Date.now()}.mp4`);
 
-    // Preserve extension for debugging; FFmpeg output is always output.mp4
-    const inputExt = path.extname(file.name) || '';
-    inputPath = path.join(tmpDir, `input${inputExt}`);
-    outputPath = path.join(tmpDir, 'output.mp4');
-
-    const buffer = await fileToBuffer(file);
-    await fs.promises.writeFile(inputPath, buffer);
-
-    // Convert to iOS-compatible MP4
+    // 2) Compress/convert BEFORE upload
     await runFfmpegConvert(inputPath, outputPath);
 
-    // Upload only the processed output file to Cloudinary
+    // 3) Upload ONLY the converted file to Cloudinary using chunked upload
     const uploadResult: any = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload(
+      cloudinary.uploader.upload_large(
         outputPath as string,
         {
           folder: computedFolder,
           resource_type: 'video',
           format: 'mp4',
-          // Keep the converted mp4 as-is; we can still generate iOS-friendly eager formats if desired,
-          // but the core is that the source is already H.264 + AAC.
-          eager: [{ format: 'mp4', codec: 'h264' }],
         },
         (error, result) => {
           if (error) reject(error);
@@ -207,11 +266,10 @@ export const POST = requireAdmin(async (request: NextRequest) => {
 
     const secure_url: string = uploadResult?.secure_url || uploadResult?.url;
     const public_id: string = uploadResult?.public_id;
-    const bytes: number = uploadResult?.bytes || file.size;
+    const bytes: number = uploadResult?.bytes || inputFileBytes;
 
     return NextResponse.json({
       success: true,
-      // Fields used by VideoUploader.jsx
       secure_url,
       public_id,
       bytes,
@@ -222,12 +280,22 @@ export const POST = requireAdmin(async (request: NextRequest) => {
       // Fields used by older page.tsx pending-upload flow
       fileUrl: secure_url,
       previewUrl: secure_url ? secure_url.replace(/\.[^/.]+$/, '.jpg') : undefined,
-      fileName: file.name,
+      fileName: inputFileName,
       fileSize: bytes,
       videoId: Date.now(),
     });
   } catch (error: any) {
     console.error('[cloudinary-upload] Error:', error);
+
+    const msg = error?.message || '';
+    const isTooLarge = error?.code === 'LIMIT_FILE_SIZE' || msg.toLowerCase().includes('file too large');
+
+    if (isTooLarge) {
+      return NextResponse.json(
+        { success: false, error: msg || 'File too large' },
+        { status: 413 },
+      );
+    }
     return NextResponse.json(
       {
         success: false,
