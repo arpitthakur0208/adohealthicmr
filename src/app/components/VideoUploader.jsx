@@ -16,8 +16,6 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
 
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'adohealth';
-  const uploadPreset = 'adohealth_signed';
   const folder = `videos/${moduleId}`;
 
   // Handle file selection
@@ -60,35 +58,14 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
     setError(null);
 
     try {
-      // 1. Get the signature from your API
-      const timestamp = Math.round(new Date().getTime() / 1000).toString();
-      const paramsToSign = {
-        timestamp: timestamp,
-        folder: folder,
-        upload_preset: uploadPreset,
-      };
-
-      const signRes = await fetch('/api/sign-cloudinary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paramsToSign }),
-      });
-
-      const signData = await signRes.json();
-      if (!signData.signature) throw new Error(signData.error || "Signature failed");
-
-      // 2. Prepare FormData for Direct Upload
       const formData = new FormData();
       formData.append('file', selectedFile);
-      formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY);
-      formData.append('timestamp', timestamp);
-      formData.append('signature', signData.signature);
       formData.append('folder', folder);
-      formData.append('upload_preset', uploadPreset);
+      formData.append('moduleId', String(moduleId));
+      formData.append('videoType', videoType);
 
-      // 3. XHR for Progress Tracking
       const xhr = new XMLHttpRequest();
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
+      const uploadUrl = '/api/cloudinary-upload';
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -105,15 +82,15 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
 
           // Notify page.tsx to save the record to PostgreSQL
           if (onUploadSuccess) {
-            onUploadSuccess(
-              response.secure_url,
-              response.public_id,
-              response.bytes
-            );
+            onUploadSuccess(response.secure_url, response.public_id, response.bytes);
           }
         } else {
-          const errorRes = JSON.parse(xhr.responseText || '{}');
-          setError(errorRes.error?.message || 'Upload failed.');
+          try {
+            const errorRes = JSON.parse(xhr.responseText || '{}');
+            setError(errorRes.error || errorRes.message || 'Upload failed.');
+          } catch {
+            setError(`Upload failed with status ${xhr.status}`);
+          }
           setUploading(false);
         }
       };
@@ -124,6 +101,7 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
       };
 
       xhr.open('POST', uploadUrl);
+      xhr.withCredentials = true;
       xhr.send(formData);
 
     } catch (err) {

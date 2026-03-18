@@ -384,68 +384,14 @@ export async function uploadVideoDirect(
     });
 
     try {
-      // Step 2a: Get signed upload signature from server
-      // Use the dedicated signature endpoint for better separation of concerns
-      let signatureResponse: Response;
-      try {
-        // Get auth token for authenticated request
-        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-        };
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
+      // Step 2: Upload to our proxy so the server can convert to iOS-compatible MP4
+      const uploadUrl = '/api/cloudinary-upload';
 
-        signatureResponse = await fetch('/api/signature', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ folder }),
-        });
-      } catch (fetchError) {
-        // Handle connection errors (server not running, network issues)
-        if (fetchError instanceof TypeError && fetchError.message.includes('fetch')) {
-          throw new Error('Cannot connect to server. Please ensure the development server is running on localhost:3000');
-        }
-        throw fetchError;
-      }
-
-      if (!signatureResponse.ok) {
-        const errorData = await signatureResponse.json().catch(() => ({ error: 'Failed to get signature' }));
-        throw new Error(errorData.error || errorData.details || 'Failed to get upload signature');
-      }
-
-      const { timestamp, signature, cloudName, apiKey } = await signatureResponse.json();
-
-      if (!cloudName || !apiKey || !signature || !timestamp) {
-        throw new Error('Invalid signature response from server');
-      }
-
-      console.log('[Cloudinary Direct Upload] ✓ Signature obtained, starting direct upload:', {
-        folder,
-        fileSize: `${(videoFile.size / (1024 * 1024)).toFixed(2)}MB`,
-        cloudName,
-      });
-
-      // Step 2b: Upload directly to Cloudinary using chunked upload
-      // Cloudinary automatically handles chunking for large files (>64MB)
-      // We use XMLHttpRequest for accurate progress tracking and better error handling
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
-      
       const formData = new FormData();
       formData.append('file', videoFile);
-      formData.append('api_key', apiKey);
-      formData.append('timestamp', timestamp.toString());
-      formData.append('signature', signature);
       formData.append('folder', folder);
-      formData.append('resource_type', 'video'); // Explicitly set to video
-      
-      // Cloudinary automatically chunks files > 64MB
-      if (videoFile.size > 64 * 1024 * 1024) {
-        console.log('[Cloudinary Direct Upload] Large file detected, Cloudinary will use chunked upload:', {
-          fileSize: `${(videoFile.size / (1024 * 1024)).toFixed(2)}MB`,
-        });
-      }
+      formData.append('moduleId', moduleId.toString());
+      formData.append('videoType', videoType);
 
       // Use XMLHttpRequest for accurate progress tracking and better error handling
       const result = await new Promise<any>((resolve, reject) => {
@@ -558,11 +504,18 @@ export async function uploadVideoDirect(
         // Set timeout for large files (10 minutes)
         xhr.timeout = 600000; // 10 minutes
 
+        // Ensure the server can authenticate this request (JWT is in httpOnly cookie or Authorization header).
+        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+
         // Start upload
         xhr.open('POST', uploadUrl);
         
         // Do NOT set Content-Type header - browser sets it automatically with boundary
         // Setting it manually will break FormData uploads
+        xhr.withCredentials = true;
+        if (token) {
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
         xhr.send(formData);
       });
 
