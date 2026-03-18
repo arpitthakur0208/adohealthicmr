@@ -61,11 +61,31 @@ function runFfmpegConvert(inputPath: string, outputPath: string): Promise<void> 
     });
 
     proc.on('error', (err) => {
+      const underlying = err instanceof Error ? err.message : String(err);
+      const ffmpegPathEnv = process.env.FFMPEG_PATH || '(not set)';
+
+      // ENOENT almost always means "ffmpeg binary missing" or "not on PATH".
+      const code = (err as any)?.code;
+      if (code === 'ENOENT') {
+        reject(
+          new Error(
+            [
+              'FFmpeg not found on the server (spawn ENOENT).',
+              'Install FFmpeg and ensure it is available to the Next.js process.',
+              'Quick checks:',
+              ' - in PowerShell: where ffmpeg',
+              ' - in PowerShell: ffmpeg -version',
+              'If you installed it but it’s not in PATH, set env var FFMPEG_PATH to the full ffmpeg.exe path, then restart the dev server.',
+              `FFMPEG_PATH=${ffmpegPathEnv}`,
+              `Underlying error: ${underlying}`,
+            ].join('\n'),
+          ),
+        );
+      }
+
       reject(
         new Error(
-          `Failed to start ffmpeg. Is ffmpeg installed and on PATH? Underlying error: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
+          `Failed to start ffmpeg. Is ffmpeg installed and on PATH? Underlying error: ${underlying}`,
         ),
       );
     });
