@@ -293,6 +293,7 @@ export async function createVideo(video: VideoData): Promise<ApiResponse<{ video
     const response = await fetch('/api/videos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(video),
     });
     return handleResponse<{ video: VideoData }>(response);
@@ -314,6 +315,7 @@ export async function updateVideo(
     const response = await fetch(`/api/videos/${id}?moduleId=${moduleId}&videoType=${videoType}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(updates),
     });
     return handleResponse<{ video: VideoData }>(response);
@@ -329,6 +331,7 @@ export async function deleteVideo(id: number, moduleId: number, videoType: strin
   try {
     const response = await fetch(`/api/videos/${id}?moduleId=${moduleId}&videoType=${videoType}`, {
       method: 'DELETE',
+      credentials: 'include',
     });
     return handleResponse<void>(response);
   } catch (error) {

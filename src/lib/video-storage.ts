@@ -193,23 +193,19 @@ export async function uploadVideoInBackground(
 
       // Save metadata to backend
       try {
-        const token = localStorage.getItem('authToken');
-        if (token) {
-          await fetch('/api/upload-video', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              ...result.video,
-              moduleId: storedVideo.moduleId,
-              videoType: storedVideo.videoType,
-              fileName: storedVideo.fileName,
-              fileSize: storedVideo.fileSize,
-            }),
-          });
-        }
+        // Rely on httpOnly auth cookie set by login. Ensure cookies are sent.
+        await fetch('/api/upload-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            ...result.video,
+            moduleId: storedVideo.moduleId,
+            videoType: storedVideo.videoType,
+            fileName: storedVideo.fileName,
+            fileSize: storedVideo.fileSize,
+          }),
+        });
       } catch (metadataError) {
         console.error('Failed to save metadata:', metadataError);
         // Continue even if metadata save fails

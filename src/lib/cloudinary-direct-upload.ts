@@ -384,14 +384,31 @@ export async function uploadVideoDirect(
     });
 
     try {
-      // Step 2: Upload to our proxy so the server can convert to iOS-compatible MP4
-      const uploadUrl = '/api/cloudinary-upload';
+      // Step 2: Signed direct upload to Cloudinary (bypasses backend entirely)
+      const signatureRes = await fetch('/api/signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder }),
+      });
+      if (!signatureRes.ok) {
+        throw new Error('Failed to generate Cloudinary upload signature.');
+      }
+      const { timestamp, signature, cloudName, apiKey } = await signatureRes.json();
+      if (!cloudName || !apiKey || !signature || !timestamp) {
+        throw new Error('Invalid signature response from server.');
+      }
+
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
 
       const formData = new FormData();
       formData.append('file', videoFile);
+      formData.append('api_key', apiKey);
+      formData.append('timestamp', timestamp);
+      formData.append('signature', signature);
       formData.append('folder', folder);
-      formData.append('moduleId', moduleId.toString());
-      formData.append('videoType', videoType);
+      formData.append('resource_type', 'video');
+      // Keep output as mp4; VideoPlayer further enforces H.264/AAC compatibility.
+      formData.append('format', 'mp4');
 
       // Use XMLHttpRequest for accurate progress tracking and better error handling
       const result = await new Promise<any>((resolve, reject) => {
@@ -504,18 +521,11 @@ export async function uploadVideoDirect(
         // Set timeout for large files (10 minutes)
         xhr.timeout = 600000; // 10 minutes
 
-        // Ensure the server can authenticate this request (JWT is in httpOnly cookie or Authorization header).
-        const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-
         // Start upload
         xhr.open('POST', uploadUrl);
         
         // Do NOT set Content-Type header - browser sets it automatically with boundary
         // Setting it manually will break FormData uploads
-        xhr.withCredentials = true;
-        if (token) {
-          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        }
         xhr.send(formData);
       });
 

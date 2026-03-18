@@ -1468,11 +1468,11 @@ export default function Home() {
       return;
     }
 
-    // Validate file size (5GB max)
-    const maxVideoSize = 5 * 1024 * 1024 * 1024;
+    // Validate file size (500MB max to avoid 413 payload errors)
+    const maxVideoSize = 500 * 1024 * 1024;
     if (file.size > maxVideoSize) {
       alert(
-        `Video file is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 5GB.`,
+        `Video file is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 500MB.`,
       );
       return;
     }
@@ -1492,12 +1492,37 @@ export default function Home() {
 
     try {
       const uploadWithProgress = () => {
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
           const xhr = new XMLHttpRequest();
+          const folder = `adohealthicmr/videos/${moduleId}/${videoType}`;
+
+          // 1) Get signature for signed upload (server-side)
+          const signatureRes = await fetch("/api/signature", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ folder }),
+          });
+          if (!signatureRes.ok) {
+            reject(new Error("Failed to generate Cloudinary upload signature."));
+            return;
+          }
+          const { timestamp, signature, apiKey, cloudName } =
+            await signatureRes.json();
+          if (!cloudName || !apiKey || !signature || !timestamp) {
+            reject(new Error("Invalid signature response from server."));
+            return;
+          }
+
+          // 2) Upload directly to Cloudinary (avoid backend /api/cloudinary-upload)
+          const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
           const formData = new FormData();
           formData.append("file", file);
-          formData.append("moduleId", String(moduleId));
-          formData.append("videoType", videoType);
+          formData.append("api_key", apiKey);
+          formData.append("timestamp", timestamp);
+          formData.append("signature", signature);
+          formData.append("folder", folder);
+          formData.append("resource_type", "video");
+          formData.append("format", "mp4");
 
           xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {
@@ -1538,8 +1563,7 @@ export default function Home() {
           };
 
           xhr.onerror = () => reject(new Error("Network error."));
-          xhr.open("POST", "/api/cloudinary-upload");
-          xhr.withCredentials = true;
+          xhr.open("POST", uploadUrl);
           xhr.send(formData);
         });
       };
@@ -1547,12 +1571,17 @@ export default function Home() {
       const data: any = await uploadWithProgress();
 
       const {
-        fileUrl,
-        previewUrl,
-        fileName: savedFileName,
-        fileSize: savedFileSize,
-        videoId,
+        secure_url,
+        url,
+        public_id,
+        bytes,
       } = data;
+
+      const fileUrl = secure_url || url || '';
+      const previewUrl = fileUrl ? fileUrl.replace(/\.[^/.]+$/, '.jpg') : '';
+      const savedFileName = file.name;
+      const savedFileSize = bytes ?? file.size;
+      const videoId = Date.now();
 
       setPendingVideos((prev) => ({
         ...prev,

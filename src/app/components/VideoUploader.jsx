@@ -16,7 +16,8 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
 
-  const folder = `videos/${moduleId}`;
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || '';
+  const folder = `adohealthicmr/videos/${moduleId}/${videoType}`;
 
   // Handle file selection
   const handleFileSelect = (event) => {
@@ -28,9 +29,11 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
       return;
     }
 
-    const maxSize = 5 * 1024 * 1024 * 1024; // 5GB
+    const maxSize = 500 * 1024 * 1024; // 500MB
     if (file.size > maxSize) {
-      setError(`File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds 5GB`);
+      setError(
+        `File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds 500MB.`,
+      );
       return;
     }
 
@@ -58,15 +61,35 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
     setError(null);
 
     try {
+      if (!cloudName) {
+        throw new Error('Cloudinary configuration missing. Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME in .env.local');
+      }
+
+      // 1) Get signature for signed upload (server-side)
+      const signatureRes = await fetch('/api/signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder }),
+      });
+      if (!signatureRes.ok) {
+        throw new Error('Failed to generate Cloudinary upload signature.');
+      }
+      const { timestamp, signature, apiKey } = await signatureRes.json();
+
+      // 2) Upload directly to Cloudinary (avoid backend upload /api/cloudinary-upload)
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
       const formData = new FormData();
       formData.append('file', selectedFile);
+      formData.append('api_key', apiKey);
+      formData.append('timestamp', timestamp);
+      formData.append('signature', signature);
       formData.append('folder', folder);
-      formData.append('moduleId', String(moduleId));
-      formData.append('videoType', videoType);
+      formData.append('resource_type', 'video');
+      // Force MP4 output for iOS compatibility as much as possible at upload time.
+      // (Playback URL transformations in VideoPlayer further enforce H.264/AAC.)
+      formData.append('format', 'mp4');
 
       const xhr = new XMLHttpRequest();
-      const uploadUrl = '/api/cloudinary-upload';
-
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
           const percent = Math.round((event.loaded / event.total) * 100);
@@ -75,22 +98,21 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
       };
 
       xhr.onload = () => {
-        if (xhr.status === 200) {
-          const response = JSON.parse(xhr.responseText);
-          setUploadResult(response);
-          setUploading(false);
+        try {
+          const response = JSON.parse(xhr.responseText || '{}');
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploadResult(response);
+            setUploading(false);
 
-          // Notify page.tsx to save the record to PostgreSQL
-          if (onUploadSuccess) {
-            onUploadSuccess(response.secure_url, response.public_id, response.bytes);
+            if (onUploadSuccess) {
+              onUploadSuccess(response.secure_url, response.public_id, response.bytes);
+            }
+          } else {
+            setError(response.error?.message || response.message || `Upload failed with status ${xhr.status}`);
+            setUploading(false);
           }
-        } else {
-          try {
-            const errorRes = JSON.parse(xhr.responseText || '{}');
-            setError(errorRes.error || errorRes.message || 'Upload failed.');
-          } catch {
-            setError(`Upload failed with status ${xhr.status}`);
-          }
+        } catch {
+          setError(`Upload failed with status ${xhr.status}`);
           setUploading(false);
         }
       };
@@ -101,7 +123,6 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
       };
 
       xhr.open('POST', uploadUrl);
-      xhr.withCredentials = true;
       xhr.send(formData);
 
     } catch (err) {
