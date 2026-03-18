@@ -63,7 +63,8 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
       const firstIsVersion = /^v\d+/.test(first);
       if (firstIsVersion) {
         // version exists, insert transforms before it
-        return `${prefix}/video/upload/${TRANS}/${first}/${remaining.split("/").slice(1).join("/")}`;
+        // remaining already includes everything after the version segment (usually the filename)
+        return `${prefix}/video/upload/${TRANS}/${first}/${remaining}`;
       }
 
       // transforms exists in first segment; replace it with ours
