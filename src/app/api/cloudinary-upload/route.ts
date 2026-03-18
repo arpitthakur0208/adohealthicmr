@@ -288,7 +288,13 @@ export const POST = requireAdmin(async (request: NextRequest) => {
     console.error('[cloudinary-upload] Error:', error);
 
     const msg = error?.message || '';
-    const isTooLarge = error?.code === 'LIMIT_FILE_SIZE' || msg.toLowerCase().includes('file too large');
+    const statusCode = error?.http_code || error?.status || error?.statusCode;
+    const isTooLarge =
+      statusCode === 413 ||
+      error?.code === 'LIMIT_FILE_SIZE' ||
+      msg.toLowerCase().includes('file too large') ||
+      msg.toLowerCase().includes('request entity too large') ||
+      msg.toLowerCase().includes('payload too large');
 
     if (isTooLarge) {
       return NextResponse.json(
