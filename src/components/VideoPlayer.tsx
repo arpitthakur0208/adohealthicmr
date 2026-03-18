@@ -32,6 +32,48 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
   // Prefer explicit src, but fall back to legacy `url` prop, then default path.
   const resolvedSrc = src || url || "/videos/sample.mp4";
 
+  // iOS compatibility: if Cloudinary returns a URL that isn't explicitly H.264/AAC,
+  // force the response format/codec with transformations.
+  const getOptimizedUrl = (input: string): string => {
+    try {
+      if (!input) return input;
+      if (!input.includes("res.cloudinary.com")) return input;
+      if (!input.includes("/video/upload/")) return input;
+
+      // If URL already has codec transforms, keep it.
+      if (
+        input.includes("f_mp4") &&
+        input.toLowerCase().includes("vc_h264") &&
+        input.toLowerCase().includes("ac_aac")
+      ) {
+        return input;
+      }
+
+      // Remove existing transformation segment only if it's clearly a transformation list.
+      // Heuristic: transformation segments contain ',' (e.g. f_mp4,f_auto,q_auto).
+      const match = input.match(/\/video\/upload\/([^/]+)\//);
+      if (match?.[1]) {
+        const seg = match[1];
+        if (seg.includes(",")) {
+          return input.replace(
+            /\/video\/upload\/[^/]+\//,
+            "/video/upload/f_mp4,vc_h264,ac_aac,q_auto/"
+          );
+        }
+      }
+
+      // Otherwise just insert the transformation right after /video/upload/
+      return input.replace(
+        "/video/upload/",
+        "/video/upload/f_mp4,vc_h264,ac_aac,q_auto/"
+      );
+    } catch {
+      return input;
+    }
+  };
+
+  const playbackSrc = getOptimizedUrl(resolvedSrc);
+
   // Lazy-load: only when visible
   useEffect(() => {
     if (!containerRef.current) return;
@@ -141,7 +183,7 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
           onError={handleError}
           controls={!canAutoPlay || hasError}
         >
-          <source src={resolvedSrc} type="video/mp4" />
+          <source src={playbackSrc} type="video/mp4" />
           {/* Fallback text if video tag not supported */}
           Your browser does not support the video tag.
         </video>

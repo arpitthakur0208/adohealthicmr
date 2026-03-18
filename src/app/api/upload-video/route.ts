@@ -67,7 +67,11 @@ export const POST = requireAdmin(async (request: NextRequest, user) => {
     // Use secure_url if available, otherwise use url
     const baseUrl = secure_url || url;
 
-    // Generate optimized URL with Cloudinary transformations: f_mp4,f_auto,q_auto
+    // Generate optimized URL with Cloudinary transformations for iOS compatibility
+    // f_mp4: explicit MP4 format
+    // vc_h264: H.264 video codec (required for iOS Safari)
+    // ac_aac: AAC audio codec (required for iOS)
+    // q_auto: automatic quality optimization
     // f_mp4: explicit MP4 format for best compatibility
     // f_auto: automatic format fallback
     // q_auto: automatic quality optimization
@@ -75,8 +79,11 @@ export const POST = requireAdmin(async (request: NextRequest, user) => {
     if (baseUrl.includes('/upload/')) {
       // Remove any existing transformations
       optimizedUrl = baseUrl.replace(/\/upload\/[^\/]+\//, '/upload/');
-      // Apply f_mp4,f_auto,q_auto transformations for full browser compatibility
-      optimizedUrl = optimizedUrl.replace('/upload/', '/upload/f_mp4,f_auto,q_auto/');
+      // Apply codecs + mp4 for full iOS compatibility
+      optimizedUrl = optimizedUrl.replace(
+        "/upload/",
+        "/upload/f_mp4,vc_h264,ac_aac,q_auto/"
+      );
 
       console.log('[Upload API] URL optimized:', {
         original: baseUrl,
