@@ -45,36 +45,45 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
       if (!input.includes("/video/upload/")) return input;
 
       const TRANS = "f_mp4,vc_h264,ac_aac,q_auto";
+      const lower = input.toLowerCase();
 
-      // Cloudinary URL format after /video/upload/:
-      // - Either: <version>/...  OR  <transforms>/ <version>/...
-      // We replace the first segment after /video/upload/ with our transforms,
-      // preserving the version segment (v123...) if present.
-      const prefixSplit = input.split("/video/upload/");
-      if (prefixSplit.length !== 2) return input;
-      const prefix = prefixSplit[0];
-      const rest = prefixSplit[1]; // e.g. v1712345/abc.mp4 or f_mp4,f_auto,q_auto/v1712345/abc.mp4
-      const segments = rest.split("/").filter(Boolean);
-      if (segments.length < 2) return input;
-
-      const first = segments[0];
-      const remaining = segments.slice(1).join("/");
-
-      const firstIsVersion = /^v\d+/.test(first);
-      if (firstIsVersion) {
-        // version exists, insert transforms before it
-        // remaining already includes everything after the version segment (usually the filename)
-        return `${prefix}/video/upload/${TRANS}/${first}/${remaining}`;
+      // If already forced, keep it.
+      if (lower.includes("f_mp4") && lower.includes("vc_h264") && lower.includes("ac_aac")) {
+        return input;
       }
 
-      // transforms exists in first segment; replace it with ours
-      return `${prefix}/video/upload/${TRANS}/${remaining}`;
+      const marker = "/video/upload/";
+      const idx = input.indexOf(marker);
+      if (idx < 0) return input;
+
+      const before = input.slice(0, idx + marker.length);
+      const after = input.slice(idx + marker.length); // e.g. v171.../file.mp4 OR old_transforms/v171.../file.mp4
+
+      const parts = after.split("/").filter(Boolean);
+      if (parts.length < 2) return input;
+
+      const first = parts[0];
+      const isVersion = /^v\d+/.test(first);
+
+      if (isVersion) {
+        // Insert transforms before version segment.
+        // /video/upload/ + TRANS + / + v123/.../file.mp4
+        return `${before}${TRANS}/${after}`;
+      }
+
+      // Replace existing transforms segment with ours, preserving version+filename.
+      return `${before}${TRANS}/${parts.slice(1).join("/")}`;
     } catch {
       return input;
     }
   };
 
   const playbackSrc = getOptimizedUrl(resolvedSrc);
+
+  // iOS sometimes delays IntersectionObserver / autoplay; initialize video UI immediately on iOS.
+  useEffect(() => {
+    if (isiOS) setIsInView(true);
+  }, [isiOS]);
 
   // If src changes (e.g. user saves a new upload), reset load/error states.
   useEffect(() => {
@@ -182,6 +191,7 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
         <div className="pt-[56.25%]" />
 
         <video
+          key={playbackSrc}
           ref={videoRef}
           className="absolute inset-0 h-full w-full object-cover"
           // iOS / mobile friendly attributes
@@ -229,6 +239,9 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 px-4 text-center text-sm text-red-100">
             <p className="mb-2 font-semibold">Video error</p>
             <p className="mb-3">{errorText}</p>
+            <p className="mb-2 text-[10px] text-red-200/90 break-all">
+              Playback URL: {playbackSrc}
+            </p>
             <p className="text-xs text-red-200">
               Ensure the video is encoded as MP4 with H.264 video and AAC audio. For example:
               <br />
