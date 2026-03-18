@@ -80,6 +80,18 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
 
   const playbackSrc = getOptimizedUrl(resolvedSrc);
 
+  // If we were given a thumbnail URL (e.g. ends with .jpg), force MP4 in the URL path too.
+  // This avoids iOS being picky about mismatched extensions.
+  const playbackSrcFinal = (() => {
+    try {
+      const [path, query] = playbackSrc.split("?");
+      const updatedPath = path.replace(/\.(jpe?g|png|webp|gif)$/i, ".mp4");
+      return query ? `${updatedPath}?${query}` : updatedPath;
+    } catch {
+      return playbackSrc;
+    }
+  })();
+
   // iOS sometimes delays IntersectionObserver / autoplay; initialize video UI immediately on iOS.
   useEffect(() => {
     if (isiOS) setIsInView(true);
@@ -95,7 +107,7 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
     setIsLoaded(false);
     // Reload metadata for the new source
     v.load();
-  }, [playbackSrc]);
+  }, [playbackSrcFinal]);
 
   // Lazy-load: only when visible
   useEffect(() => {
@@ -191,7 +203,7 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
         <div className="pt-[56.25%]" />
 
         <video
-          key={playbackSrc}
+        key={playbackSrcFinal}
           ref={videoRef}
           className="absolute inset-0 h-full w-full object-cover"
           // iOS / mobile friendly attributes
@@ -208,7 +220,7 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
           // iOS sometimes needs controls for better fallback UX.
           controls={isiOS || !canAutoPlay || hasError}
         >
-          <source src={playbackSrc} type="video/mp4" />
+          <source src={playbackSrcFinal} type="video/mp4" />
           {/* Fallback text if video tag not supported */}
           Your browser does not support the video tag.
         </video>
@@ -240,7 +252,7 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
             <p className="mb-2 font-semibold">Video error</p>
             <p className="mb-3">{errorText}</p>
             <p className="mb-2 text-[10px] text-red-200/90 break-all">
-              Playback URL: {playbackSrc}
+              Playback URL: {playbackSrcFinal}
             </p>
             <p className="text-xs text-red-200">
               Ensure the video is encoded as MP4 with H.264 video and AAC audio. For example:
