@@ -7,7 +7,8 @@ export const runtime = 'nodejs';
 export async function POST(req: NextRequest) {
   try {
     // Only server-side env access here (safe).
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    // Cloud name is used by both frontend and backend; some setups only provide the NEXT_PUBLIC_* variant.
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
     const apiKey = process.env.CLOUDINARY_API_KEY;
     const apiSecret = process.env.CLOUDINARY_API_SECRET;
 

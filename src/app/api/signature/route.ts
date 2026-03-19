@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 // Legacy endpoint kept for backward compatibility.
 // If anything still calls /api/signature, it will now behave consistently with /api/cloudinary-signature.
 export async function POST(req: NextRequest) {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
   const apiKey = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
