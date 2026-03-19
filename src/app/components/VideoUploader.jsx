@@ -16,7 +16,6 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
 
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || '';
   const folder = `adohealthicmr/videos/${moduleId}/${videoType}`;
 
   // Handle file selection
@@ -61,10 +60,6 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
     setError(null);
 
     try {
-      if (!cloudName) {
-        throw new Error('Cloudinary configuration missing. Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME in .env.local');
-      }
-
       // 1) Get signature for signed upload (server-side)
       const signatureRes = await fetch('/api/cloudinary-signature', {
         method: 'POST',
@@ -80,7 +75,7 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
         apiKey,
         cloudName: signedCloudName,
       } = await signatureRes.json();
-      const finalCloudName = signedCloudName || cloudName;
+      const finalCloudName = signedCloudName;
       if (!finalCloudName || !apiKey || !signature || !timestamp) {
         throw new Error('Invalid signature response from server.');
       }

@@ -1,70 +1,79 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { v2 as cloudinary } from 'cloudinary';
+import crypto from 'crypto';
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || '',
-  api_key: process.env.CLOUDINARY_API_KEY || '',
-  api_secret: process.env.CLOUDINARY_API_SECRET || '',
-  secure: true,
-});
+export const dynamic = 'force-dynamic';
 
+function getSignatureSha1(params: Record<string, string>, apiSecret: string) {
+  const sortedKeys = Object.keys(params).sort();
+  const unsigned = sortedKeys
+    .map((key) => `${key}=${encodeURIComponent(params[key])}`)
+    .join('&');
+
+  return crypto.createHash('sha1').update(`${unsigned}${apiSecret}`).digest('hex');
+}
+
+// Legacy endpoint kept for backward compatibility.
+// If anything still calls /api/signature, it will now behave consistently with /api/cloudinary-signature.
 export async function POST(req: NextRequest) {
-  try {
-    // Parse request body to get folder
-    const body = await req.json().catch(() => ({}));
-    const folder = (body as { folder?: string }).folder || 'adohealthicmr/videos';
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-    const apiKey = process.env.CLOUDINARY_API_KEY;
-    const apiSecret = process.env.CLOUDINARY_API_SECRET;
-    if (!cloudName || !apiKey || !apiSecret) {
-      return NextResponse.json(
-        {
-          error: 'Cloudinary config missing',
-          missing: {
-            CLOUDINARY_CLOUD_NAME: !cloudName,
-            CLOUDINARY_API_KEY: !apiKey,
-            CLOUDINARY_API_SECRET: !apiSecret,
-          },
+  if (!cloudName || !apiKey || !apiSecret) {
+    console.error('[cloudinary-signature (legacy)] Missing env vars', {
+      hasCloudName: !!cloudName,
+      hasApiKey: !!apiKey,
+      hasApiSecret: !!apiSecret,
+    });
+
+    return NextResponse.json(
+      {
+        error: 'Cloudinary config missing on server',
+        missing: {
+          CLOUDINARY_CLOUD_NAME: !cloudName,
+          CLOUDINARY_API_KEY: !apiKey,
+          CLOUDINARY_API_SECRET: !apiSecret,
         },
-        { status: 500 },
-      );
-    }
+      },
+      { status: 500 },
+    );
+  }
 
-    const timestamp = Math.round(Date.now() / 1000);
-    
-    // Parameters for signed upload (must match what Cloudinary expects)
-    const params = {
-      timestamp: timestamp.toString(),
-      folder: folder,
+  try {
+    const body = await req.json().catch(() => ({}));
+    const folder =
+      typeof body?.folder === 'string' && body.folder.trim().length > 0
+        ? body.folder
+        : 'adohealthicmr/videos';
+
+    const timestamp = Math.round(Date.now() / 1000).toString();
+
+    const params: Record<string, string> = {
+      timestamp,
+      folder,
       resource_type: 'video',
     };
 
-    const signature = cloudinary.utils.api_sign_request(
-      params,
-      apiSecret
-    );
-
-    console.log('[Cloudinary Signature] ✓ Signature generated:', {
+    // Debug logging only (no secrets)
+    console.log('[cloudinary-signature (legacy)] Generating signature', {
+      cloudName,
+      apiKeyPrefix: apiKey.slice(0, 6) + '...',
       folder,
-      resourceType: 'video',
       timestamp,
+      paramsKeys: Object.keys(params),
     });
 
-    // Return all fields that client expects
+    const signature = getSignatureSha1(params, apiSecret);
+
     return NextResponse.json({
-      timestamp,
+      timestamp: Number(timestamp),
       signature,
       cloudName,
       apiKey,
       folder,
     });
-  } catch (error) {
-    console.error('[Cloudinary Signature] ❌ Error generating signature:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate signature', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    console.error('[cloudinary-signature (legacy)] Error generating signature', error);
+    return NextResponse.json({ error: 'Failed to generate signature' }, { status: 500 });
   }
 }

@@ -312,14 +312,6 @@ export async function uploadVideoDirect(
   const { onProgress, compress = false, quality = 0.6, maxRetries = 3 } = options;
   const fileSizeMB = file.size / 1024 / 1024;
 
-  // ✅ Step 1: Validate Cloudinary configuration
-  if (!CLOUDINARY_CLOUD_NAME) {
-    return {
-      success: false,
-      error: 'Cloudinary configuration missing. Please set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME in .env.local',
-    };
-  }
-
   // ✅ Step 2: Check file size (recommend under 500MB)
   const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
   if (file.size > MAX_FILE_SIZE) {
