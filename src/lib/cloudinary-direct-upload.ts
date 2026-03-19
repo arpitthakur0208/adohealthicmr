@@ -384,13 +384,16 @@ export async function uploadVideoDirect(
       });
       if (!signatureRes.ok) {
         // Read server error response for actionable debugging
-        const payload = await signatureRes.json().catch(() => null);
-        const details =
-          payload?.error ||
-          payload?.details ||
-          (payload?.missing ? `Missing: ${JSON.stringify(payload.missing)}` : null) ||
-          payload;
-        console.error('[Cloudinary Direct Upload] Signature API failed:', details);
+      const payload = await signatureRes.json().catch(() => null);
+      let details =
+        payload?.error ||
+        payload?.details ||
+        payload;
+      if (payload?.missing) {
+        // Ensure missing env var keys don't get hidden behind payload.error
+        details = `${typeof details === 'string' ? details : JSON.stringify(details)} Missing: ${JSON.stringify(payload.missing)}`;
+      }
+      console.error('[Cloudinary Direct Upload] Signature API failed:', details);
         throw new Error(
           `Failed to generate Cloudinary upload signature. ${details ? `(${typeof details === 'string' ? details : JSON.stringify(details)})` : ''}`,
         );
