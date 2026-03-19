@@ -15,6 +15,23 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const folder = (body as { folder?: string }).folder || 'adohealthicmr/videos';
 
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+    if (!cloudName || !apiKey || !apiSecret) {
+      return NextResponse.json(
+        {
+          error: 'Cloudinary config missing',
+          missing: {
+            CLOUDINARY_CLOUD_NAME: !cloudName,
+            CLOUDINARY_API_KEY: !apiKey,
+            CLOUDINARY_API_SECRET: !apiSecret,
+          },
+        },
+        { status: 500 },
+      );
+    }
+
     const timestamp = Math.round(Date.now() / 1000);
     
     // Parameters for signed upload (must match what Cloudinary expects)
@@ -26,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     const signature = cloudinary.utils.api_sign_request(
       params,
-      process.env.CLOUDINARY_API_SECRET || ''
+      apiSecret
     );
 
     console.log('[Cloudinary Signature] ✓ Signature generated:', {
@@ -39,8 +56,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       timestamp,
       signature,
-      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-      apiKey: process.env.CLOUDINARY_API_KEY,
+      cloudName,
+      apiKey,
       folder,
     });
   } catch (error) {

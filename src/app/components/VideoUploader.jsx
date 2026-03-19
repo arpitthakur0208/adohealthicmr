@@ -74,10 +74,19 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
       if (!signatureRes.ok) {
         throw new Error('Failed to generate Cloudinary upload signature.');
       }
-      const { timestamp, signature, apiKey } = await signatureRes.json();
+      const {
+        timestamp,
+        signature,
+        apiKey,
+        cloudName: signedCloudName,
+      } = await signatureRes.json();
+      const finalCloudName = signedCloudName || cloudName;
+      if (!finalCloudName || !apiKey || !signature || !timestamp) {
+        throw new Error('Invalid signature response from server.');
+      }
 
       // 2) Upload directly to Cloudinary (avoid backend upload /api/cloudinary-upload)
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${finalCloudName}/video/upload`;
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('api_key', apiKey);
