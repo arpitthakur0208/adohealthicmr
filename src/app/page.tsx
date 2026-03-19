@@ -1497,7 +1497,7 @@ export default function Home() {
           const folder = `adohealthicmr/videos/${moduleId}/${videoType}`;
 
           // 1) Get signature for signed upload (server-side)
-          const signatureRes = await fetch("/api/signature", {
+          const signatureRes = await fetch("/api/cloudinary-signature", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ folder }),

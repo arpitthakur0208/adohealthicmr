@@ -385,7 +385,7 @@ export async function uploadVideoDirect(
 
     try {
       // Step 2: Signed direct upload to Cloudinary (bypasses backend entirely)
-      const signatureRes = await fetch('/api/signature', {
+      const signatureRes = await fetch('/api/cloudinary-signature', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folder }),
