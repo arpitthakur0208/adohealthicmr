@@ -2,7 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const runtime = "nodejs";
+
+export async function GET() {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  return NextResponse.json({
+    ok: !!cloudName && !!apiKey && !!apiSecret,
+    env: {
+      cloudName: cloudName ? "OK" : "MISSING",
+      key: apiKey ? "OK" : "MISSING",
+      secret: apiSecret ? "OK" : "MISSING",
+    },
+  });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,6 +26,13 @@ export async function POST(req: NextRequest) {
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
     const apiKey = process.env.CLOUDINARY_API_KEY;
     const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    // Debug env loading (masked) to verify server has access to required variables.
+    console.log('[cloudinary-signature] env check', {
+      cloud: process.env.CLOUDINARY_CLOUD_NAME,
+      key: apiKey ? "OK" : "MISSING",
+      secret: apiSecret ? "OK" : "MISSING",
+    });
 
     if (!cloudName || !apiKey || !apiSecret) {
       console.error('[cloudinary-signature] Missing env vars', {
