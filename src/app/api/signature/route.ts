@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
+import { v2 as cloudinary } from 'cloudinary';
 
 export const dynamic = 'force-dynamic';
-
-function getSignatureSha1(params: Record<string, string>, apiSecret: string) {
-  const sortedKeys = Object.keys(params).sort();
-  const unsigned = sortedKeys
-    .map((key) => `${key}=${encodeURIComponent(params[key])}`)
-    .join('&');
-
-  return crypto.createHash('sha1').update(`${unsigned}${apiSecret}`).digest('hex');
-}
+export const runtime = 'nodejs';
 
 // Legacy endpoint kept for backward compatibility.
 // If anything still calls /api/signature, it will now behave consistently with /api/cloudinary-signature.
@@ -46,13 +38,10 @@ export async function POST(req: NextRequest) {
         ? body.folder
         : 'adohealthicmr/videos';
 
-    const timestamp = Math.round(Date.now() / 1000).toString();
+    const resource_type = 'video';
+    const timestamp = Math.floor(Date.now() / 1000).toString();
 
-    const params: Record<string, string> = {
-      timestamp,
-      folder,
-      resource_type: 'video',
-    };
+    const paramsToSign = { timestamp, folder, resource_type };
 
     // Debug logging only (no secrets)
     console.log('[cloudinary-signature (legacy)] Generating signature', {
@@ -60,13 +49,19 @@ export async function POST(req: NextRequest) {
       apiKeyPrefix: apiKey.slice(0, 6) + '...',
       folder,
       timestamp,
-      paramsKeys: Object.keys(params),
+      paramsKeys: Object.keys(paramsToSign),
     });
 
-    const signature = getSignatureSha1(params, apiSecret);
+    cloudinary.config({
+      cloud_name: cloudName,
+      api_key: apiKey,
+      api_secret: apiSecret,
+    });
+
+    const signature = cloudinary.utils.api_sign_request(paramsToSign, apiSecret);
 
     return NextResponse.json({
-      timestamp: Number(timestamp),
+      timestamp,
       signature,
       cloudName,
       apiKey,
