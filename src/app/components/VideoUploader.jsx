@@ -67,7 +67,19 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
         body: JSON.stringify({ folder }),
       });
       if (!signatureRes.ok) {
-        throw new Error('Failed to generate Cloudinary upload signature.');
+        const payload = await signatureRes.json().catch(() => null);
+        let details =
+          payload?.error ||
+          payload?.details ||
+          payload;
+        if (payload?.missing) {
+          // Ensure missing env var keys don't get hidden behind payload.error
+          details = `${typeof details === 'string' ? details : JSON.stringify(details)} Missing: ${JSON.stringify(payload.missing)}`;
+        }
+        console.error('[VideoUploader] Signature API failed:', details);
+        throw new Error(
+          `Failed to generate Cloudinary upload signature${details ? `: ${typeof details === 'string' ? details : JSON.stringify(details)}` : ''}`,
+        );
       }
       const {
         timestamp,

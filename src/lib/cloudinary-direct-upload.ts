@@ -383,7 +383,20 @@ export async function uploadVideoDirect(
         body: JSON.stringify({ folder }),
       });
       if (!signatureRes.ok) {
-        throw new Error('Failed to generate Cloudinary upload signature.');
+        // Read server error response for actionable debugging
+      const payload = await signatureRes.json().catch(() => null);
+      let details =
+        payload?.error ||
+        payload?.details ||
+        payload;
+      if (payload?.missing) {
+        // Ensure missing env var keys don't get hidden behind payload.error
+        details = `${typeof details === 'string' ? details : JSON.stringify(details)} Missing: ${JSON.stringify(payload.missing)}`;
+      }
+      console.error('[Cloudinary Direct Upload] Signature API failed:', details);
+        throw new Error(
+          `Failed to generate Cloudinary upload signature. ${details ? `(${typeof details === 'string' ? details : JSON.stringify(details)})` : ''}`,
+        );
       }
       const { timestamp, signature, cloudName, apiKey } = await signatureRes.json();
       if (!cloudName || !apiKey || !signature || !timestamp) {
@@ -550,7 +563,12 @@ export async function uploadVideoDirect(
         } else if (errorMessage.includes('CORS') || errorMessage.includes('Access-Control')) {
           errorMessage = 'CORS error: Please configure Cloudinary CORS settings to allow uploads from your domain.';
         } else if (errorMessage.includes('signature')) {
-          errorMessage = 'Signature error: Failed to generate upload signature. Please try again.';
+          // Preserve any additional context we added when the signature API failed (e.g. missing env vars).
+          if (errorMessage.startsWith('Failed to generate Cloudinary upload signature')) {
+            errorMessage = `Signature error: ${errorMessage}`;
+          } else {
+            errorMessage = 'Signature error: Failed to generate upload signature. Please try again.';
+          }
         } else if (errorMessage.includes('Network') || errorMessage.includes('fetch')) {
           errorMessage = 'Network error: Please check your internet connection and ensure the server is running.';
         }
