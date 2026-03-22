@@ -1,59 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
+import { getCloudinaryServerEnv } from '@/lib/cloudinary-env';
 
 export const dynamic = 'force-dynamic';
-export const runtime = "nodejs";
+export const runtime = 'nodejs';
 
+/**
+ * Debug: which env vars are present (booleans only — never expose secrets).
+ */
 export async function GET() {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const apiKey = process.env.CLOUDINARY_API_KEY;
-  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  const { ok, envStatus } = getCloudinaryServerEnv();
 
   return NextResponse.json({
-    ok: !!cloudName && !!apiKey && !!apiSecret,
+    ok,
     env: {
-      cloudName: cloudName ? "OK" : "MISSING",
-      key: apiKey ? "OK" : "MISSING",
-      secret: apiSecret ? "OK" : "MISSING",
+      cloudName: envStatus.cloudName,
+      apiKey: envStatus.apiKey,
+      apiSecret: envStatus.apiSecret,
     },
   });
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    // Only server-side env access here (safe).
-    // Cloud name is used by both frontend and backend; some setups only provide the NEXT_PUBLIC_* variant.
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-    const apiKey = process.env.CLOUDINARY_API_KEY;
-    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  const env = getCloudinaryServerEnv();
 
-    // Debug env loading (masked) to verify server has access to required variables.
-    console.log('[cloudinary-signature] env check', {
-      cloud: process.env.CLOUDINARY_CLOUD_NAME,
-      key: apiKey ? "OK" : "MISSING",
-      secret: apiSecret ? "OK" : "MISSING",
+  if (!env.ok) {
+    console.error('[cloudinary-signature] Missing env vars', {
+      missingVars: env.missingVars,
+      envStatus: env.envStatus,
     });
 
-    if (!cloudName || !apiKey || !apiSecret) {
-      console.error('[cloudinary-signature] Missing env vars', {
-        hasCloudName: !!cloudName,
-        hasApiKey: !!apiKey,
-        hasApiSecret: !!apiSecret,
-      });
+    return NextResponse.json(
+      {
+        error: 'Cloudinary config missing on server',
+        message:
+          'Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in .env.local (project root) and restart the dev server.',
+        missing: env.missing,
+        missingVars: env.missingVars,
+      },
+      { status: 500 },
+    );
+  }
 
-      return NextResponse.json(
-        {
-          error: 'Cloudinary config missing on server',
-          missing: {
-            CLOUDINARY_CLOUD_NAME: !cloudName,
-            CLOUDINARY_API_KEY: !apiKey,
-            CLOUDINARY_API_SECRET: !apiSecret,
-          },
-        },
-        { status: 500 },
-      );
-    }
+  const { cloudName, apiKey, apiSecret } = env;
 
+  try {
     const body = await req.json().catch(() => ({}));
     const folder =
       typeof body?.folder === 'string' && body.folder.trim().length > 0
@@ -61,12 +52,10 @@ export async function POST(req: NextRequest) {
         : 'adohealthicmr/videos';
 
     const resource_type = 'video';
-    const timestamp = Math.floor(Date.now() / 1000).toString(); // Cloudinary expects seconds
+    const timestamp = Math.floor(Date.now() / 1000).toString();
 
-    // Sign params must match exactly what the client sends in FormData.
     const paramsToSign = { timestamp, folder, resource_type };
 
-    // Configure Cloudinary (useful for utils consistency; doesn't leak secrets to client).
     cloudinary.config({
       cloud_name: cloudName,
       api_key: apiKey,
@@ -101,4 +90,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

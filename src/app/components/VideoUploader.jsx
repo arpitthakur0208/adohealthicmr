@@ -67,19 +67,23 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
         body: JSON.stringify({ folder }),
       });
       if (!signatureRes.ok) {
-        const payload = await signatureRes.json().catch(() => null);
-        let details =
+        const payload = await signatureRes.json().catch(() => ({}));
+        console.error('[VideoUploader] Signature API failed', {
+          status: signatureRes.status,
+          statusText: signatureRes.statusText,
+          payload,
+        });
+        const missingVars = payload?.missingVars;
+        const base =
+          payload?.message ||
           payload?.error ||
-          payload?.details ||
-          payload;
-        if (payload?.missing) {
-          // Ensure missing env var keys don't get hidden behind payload.error
-          details = `${typeof details === 'string' ? details : JSON.stringify(details)} Missing: ${JSON.stringify(payload.missing)}`;
-        }
-        console.error('[VideoUploader] Signature API failed:', details);
-        throw new Error(
-          `Failed to generate Cloudinary upload signature${details ? `: ${typeof details === 'string' ? details : JSON.stringify(details)}` : ''}`,
-        );
+          'Cloudinary signature could not be created on the server.';
+        const missingHint = Array.isArray(missingVars) && missingVars.length
+          ? ` Set these in .env.local (project root), then restart: ${missingVars.join(', ')}.`
+          : '';
+        setError(`${base}${missingHint}`);
+        setUploading(false);
+        return;
       }
       const {
         timestamp,

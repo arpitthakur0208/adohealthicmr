@@ -1,12 +1,18 @@
 import { v2 as cloudinary } from 'cloudinary';
+import { getCloudinaryServerEnv } from './cloudinary-env';
 
-// Configure Cloudinary with environment variables
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure: true,
-});
+// Align with /api/cloudinary-signature (same env resolution; no hardcoded credentials)
+function applyCloudinaryConfigFromEnv() {
+  const { cloudName, apiKey, apiSecret } = getCloudinaryServerEnv();
+  cloudinary.config({
+    cloud_name: cloudName || undefined,
+    api_key: apiKey || undefined,
+    api_secret: apiSecret || undefined,
+    secure: true,
+  });
+}
+
+applyCloudinaryConfigFromEnv();
 
 export interface CloudinaryUploadResult {
   public_id: string;

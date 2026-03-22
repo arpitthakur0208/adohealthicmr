@@ -1,35 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
+import { getCloudinaryServerEnv } from '@/lib/cloudinary-env';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// Legacy endpoint kept for backward compatibility.
-// If anything still calls /api/signature, it will now behave consistently with /api/cloudinary-signature.
+// Legacy endpoint — same env + signing logic as /api/cloudinary-signature
 export async function POST(req: NextRequest) {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const apiKey = process.env.CLOUDINARY_API_KEY;
-  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  const env = getCloudinaryServerEnv();
 
-  if (!cloudName || !apiKey || !apiSecret) {
-    console.error('[cloudinary-signature (legacy)] Missing env vars', {
-      hasCloudName: !!cloudName,
-      hasApiKey: !!apiKey,
-      hasApiSecret: !!apiSecret,
+  if (!env.ok) {
+    console.error('[api/signature] Missing env vars', {
+      missingVars: env.missingVars,
     });
 
     return NextResponse.json(
       {
         error: 'Cloudinary config missing on server',
-        missing: {
-          CLOUDINARY_CLOUD_NAME: !cloudName,
-          CLOUDINARY_API_KEY: !apiKey,
-          CLOUDINARY_API_SECRET: !apiSecret,
-        },
+        message:
+          'Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in .env.local and restart.',
+        missing: env.missing,
+        missingVars: env.missingVars,
       },
       { status: 500 },
     );
   }
+
+  const { cloudName, apiKey, apiSecret } = env;
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -43,8 +40,7 @@ export async function POST(req: NextRequest) {
 
     const paramsToSign = { timestamp, folder, resource_type };
 
-    // Debug logging only (no secrets)
-    console.log('[cloudinary-signature (legacy)] Generating signature', {
+    console.log('[api/signature] Generating signature', {
       cloudName,
       apiKeyPrefix: apiKey.slice(0, 6) + '...',
       folder,
@@ -68,7 +64,13 @@ export async function POST(req: NextRequest) {
       folder,
     });
   } catch (error: unknown) {
-    console.error('[cloudinary-signature (legacy)] Error generating signature', error);
-    return NextResponse.json({ error: 'Failed to generate signature' }, { status: 500 });
+    console.error('[api/signature] Error generating signature', error);
+    return NextResponse.json(
+      {
+        error: 'Failed to generate signature',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 },
+    );
   }
 }
