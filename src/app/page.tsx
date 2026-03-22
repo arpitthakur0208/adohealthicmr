@@ -1333,47 +1333,60 @@ export default function Home() {
 
   const getColorClasses = (color: string) => {
     const colors: {
-      [key: string]: { bg: string; border: string; hover: string };
+      [key: string]: {
+        bg: string;
+        border: string;
+        hover: string;
+        heart: string;
+      };
     } = {
       pink: {
         bg: "bg-pink-500",
         border: "border-pink-300",
         hover: "hover:border-pink-400",
+        heart: "text-rose-600",
       },
       blue: {
         bg: "bg-blue-500",
         border: "border-blue-300",
         hover: "hover:border-blue-400",
+        heart: "text-sky-700",
       },
       green: {
         bg: "bg-green-500",
         border: "border-green-300",
         hover: "hover:border-green-400",
+        heart: "text-emerald-700",
       },
       purple: {
         bg: "bg-purple-500",
         border: "border-purple-300",
         hover: "hover:border-purple-400",
+        heart: "text-violet-700",
       },
       orange: {
         bg: "bg-orange-500",
         border: "border-orange-300",
         hover: "hover:border-orange-400",
+        heart: "text-amber-700",
       },
       indigo: {
         bg: "bg-indigo-500",
         border: "border-indigo-300",
         hover: "hover:border-indigo-400",
+        heart: "text-indigo-700",
       },
       teal: {
         bg: "bg-teal-500",
         border: "border-teal-300",
         hover: "hover:border-teal-400",
+        heart: "text-cyan-700",
       },
       red: {
         bg: "bg-red-500",
         border: "border-red-300",
         hover: "hover:border-red-400",
+        heart: "text-red-800",
       },
     };
     return colors[color] || colors.pink;
@@ -2895,9 +2908,8 @@ export default function Home() {
                               viewBox="0 0 24 24"
                               fill="none"
                               xmlns="http://www.w3.org/2000/svg"
-                              className={colorClasses.bg
-                                .replace("bg-", "text-")
-                                .replace("500", "600")}
+                              className={colorClasses.heart}
+                              aria-hidden="true"
                             >
                               <path
                                 d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
