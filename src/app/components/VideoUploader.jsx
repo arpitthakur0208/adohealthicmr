@@ -1,12 +1,28 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+
+/** H.264 + AAC MP4 for in-browser preview (Safari / Chrome). */
+function toBrowserPlayableCloudinaryUrl(secureUrl) {
+  if (!secureUrl || typeof secureUrl !== 'string') return '';
+  if (!secureUrl.includes('res.cloudinary.com') || !secureUrl.includes('/upload/')) {
+    return secureUrl;
+  }
+  if (secureUrl.includes('vc_h264') && secureUrl.includes('f_mp4')) {
+    return secureUrl;
+  }
+  return secureUrl.replace(
+    '/upload/',
+    '/upload/f_mp4,vc_h264,ac_aac,q_auto/'
+  );
+}
 
 export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState(null);
+  const [uploadResult, setUploadResult] = useState(null);
 
   const fileInputRef = useRef(null);
 
@@ -22,6 +38,7 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
     }
 
     setSelectedFile(file);
+    setUploadResult(null);
     setError(null);
   };
 
@@ -74,6 +91,7 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
         const response = JSON.parse(xhr.responseText || '{}');
 
         if (xhr.status >= 200 && xhr.status < 300) {
+          setUploadResult(response);
           setUploading(false);
           if (onUploadSuccess) {
             onUploadSuccess(
@@ -104,6 +122,12 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
     }
   };
 
+  const videoUrl = toBrowserPlayableCloudinaryUrl(uploadResult?.secure_url);
+
+  useEffect(() => {
+    if (videoUrl) console.log('Final Video URL:', videoUrl);
+  }, [videoUrl]);
+
   return (
     <div>
       <input
@@ -115,10 +139,28 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
 
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      {selectedFile && (
+      {selectedFile && !uploadResult && (
         <button onClick={handleUpload} disabled={uploading}>
           {uploading ? `Uploading ${uploadProgress}%` : 'Upload Video'}
         </button>
+      )}
+
+      {uploadResult?.secure_url && videoUrl && (
+        <div style={{ marginTop: '12px' }}>
+          <video
+            key={videoUrl}
+            controls
+            playsInline
+            style={{
+              width: '100%',
+              borderRadius: '5px',
+              backgroundColor: '#000',
+            }}
+          >
+            <source src={videoUrl} type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
+        </div>
       )}
     </div>
   );
