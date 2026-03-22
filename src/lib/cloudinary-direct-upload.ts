@@ -30,7 +30,8 @@ export interface UploadOptions {
   maxRetries?: number; // Number of retry attempts for failed chunks (default: 3)
 }
 
-// Cloudinary configuration from environment
+// Client bundle: only NEXT_PUBLIC_* is available at build time. Signature + cloudName come from /api/cloudinary-signature.
+// Set CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_* in .env.local for the server.
 const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || '';
 const CLOUDINARY_UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || '';
 
@@ -383,19 +384,28 @@ export async function uploadVideoDirect(
         body: JSON.stringify({ folder }),
       });
       if (!signatureRes.ok) {
-        // Read server error response for actionable debugging
-      const payload = await signatureRes.json().catch(() => null);
-      let details =
-        payload?.error ||
-        payload?.details ||
-        payload;
-      if (payload?.missing) {
-        // Ensure missing env var keys don't get hidden behind payload.error
-        details = `${typeof details === 'string' ? details : JSON.stringify(details)} Missing: ${JSON.stringify(payload.missing)}`;
-      }
-      console.error('[Cloudinary Direct Upload] Signature API failed:', details);
+        const payload = await signatureRes.json().catch(() => ({}));
+        const vars =
+          payload?.missingVars ||
+          (payload?.env &&
+            Object.entries(payload.env)
+              .filter(([, v]) => !v)
+              .map(([k]) =>
+                k === 'cloudName'
+                  ? 'CLOUDINARY_CLOUD_NAME'
+                  : k === 'apiKey'
+                    ? 'CLOUDINARY_API_KEY'
+                    : k === 'apiSecret'
+                      ? 'CLOUDINARY_API_SECRET'
+                      : k,
+              ));
+        const hint =
+          Array.isArray(vars) && vars.length
+            ? ` Set in .env.local (project root): ${vars.join(', ')}.`
+            : '';
+        console.error('[Cloudinary Direct Upload] Signature API failed', payload);
         throw new Error(
-          `Failed to generate Cloudinary upload signature. ${details ? `(${typeof details === 'string' ? details : JSON.stringify(details)})` : ''}`,
+          `${payload?.message || payload?.error || 'Failed to generate Cloudinary upload signature.'}${hint}`,
         );
       }
       const { timestamp, signature, cloudName, apiKey } = await signatureRes.json();

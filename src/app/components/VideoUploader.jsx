@@ -60,41 +60,65 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
     setError(null);
 
     try {
-      // 1) Get signature for signed upload (server-side)
-      const signatureRes = await fetch('/api/cloudinary-signature', {
+      // 1) Signed upload: server returns signature + credentials (never the API secret).
+      const res = await fetch('/api/cloudinary-signature', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folder }),
+        credentials: 'same-origin',
       });
-      if (!signatureRes.ok) {
-        const payload = await signatureRes.json().catch(() => ({}));
-        console.error('[VideoUploader] Signature API failed', {
-          status: signatureRes.status,
-          statusText: signatureRes.statusText,
-          payload,
+
+      const data = await res.json().catch(() => ({}));
+      console.log('[VideoUploader] cloudinary-signature response', data);
+
+      const signatureFailed =
+        !res.ok ||
+        data.ok === false ||
+        !data.signature ||
+        !data.timestamp ||
+        !data.cloudName ||
+        !data.apiKey;
+
+      if (signatureFailed) {
+        console.error('[VideoUploader] Signature API failed (full response)', {
+          status: res.status,
+          statusText: res.statusText,
+          data,
         });
-        const missingVars = payload?.missingVars;
+        const missingVars = data?.missingVars;
+        const env = data?.env;
+        let varsList =
+          Array.isArray(missingVars) && missingVars.length ? missingVars : [];
+        if (!varsList.length && env && typeof env === 'object') {
+          const nameMap = {
+            cloudName: 'CLOUDINARY_CLOUD_NAME',
+            apiKey: 'CLOUDINARY_API_KEY',
+            apiSecret: 'CLOUDINARY_API_SECRET',
+          };
+          varsList = Object.entries(env)
+            .filter(([, set]) => !set)
+            .map(([key]) => nameMap[key] || key);
+        }
         const base =
-          payload?.message ||
-          payload?.error ||
+          data?.message ||
+          data?.details ||
+          data?.error ||
           'Cloudinary signature could not be created on the server.';
-        const missingHint = Array.isArray(missingVars) && missingVars.length
-          ? ` Set these in .env.local (project root), then restart: ${missingVars.join(', ')}.`
+        const missingHint = varsList.length
+          ? ` Set in .env.local (project root, next to package.json), then restart: ${varsList.join(', ')}.`
           : '';
-        setError(`${base}${missingHint}`);
+        if (!data.signature && res.ok) {
+          setError(
+            `${base} (Missing signature in response — check server logs.)${missingHint}`,
+          );
+        } else {
+          setError(`${base}${missingHint}`);
+        }
         setUploading(false);
         return;
       }
-      const {
-        timestamp,
-        signature,
-        apiKey,
-        cloudName: signedCloudName,
-      } = await signatureRes.json();
-      const finalCloudName = signedCloudName;
-      if (!finalCloudName || !apiKey || !signature || !timestamp) {
-        throw new Error('Invalid signature response from server.');
-      }
+
+      const { timestamp, signature, apiKey, cloudName: finalCloudName } = data;
 
       // 2) Upload directly to Cloudinary (avoid backend upload /api/cloudinary-upload)
       const uploadUrl = `https://api.cloudinary.com/v1_1/${finalCloudName}/video/upload`;

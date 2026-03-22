@@ -1503,7 +1503,17 @@ export default function Home() {
             body: JSON.stringify({ folder }),
           });
           if (!signatureRes.ok) {
-            reject(new Error("Failed to generate Cloudinary upload signature."));
+            const payload = await signatureRes.json().catch(() => ({}));
+            const vars = payload?.missingVars?.length
+              ? payload.missingVars.join(", ")
+              : "";
+            reject(
+              new Error(
+                payload?.message ||
+                  payload?.error ||
+                  `Cloudinary env missing.${vars ? ` Set: ${vars} in .env.local` : ""}`,
+              ),
+            );
             return;
           }
           const { timestamp, signature, apiKey, cloudName } =

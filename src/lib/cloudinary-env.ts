@@ -10,6 +10,10 @@ export type CloudinaryEnvStatus = {
   apiSecret: boolean;
 };
 
+/**
+ * Same resolution as src/app/api/cloudinary-signature/route.ts (readCloudinaryEnv).
+ * Used by lib/cloudinary.ts and legacy API routes.
+ */
 export function getCloudinaryServerEnv(): {
   ok: boolean;
   cloudName: string;

@@ -16,13 +16,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       {
-        error: 'Cloudinary config missing on server',
+        ok: false,
+        error: 'Cloudinary env variables missing',
         message:
-          'Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in .env.local and restart.',
-        missing: env.missing,
+          'Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in .env.local (project root) and restart.',
+        env: env.envStatus,
         missingVars: env.missingVars,
       },
-      { status: 500 },
+      { status: 503 },
     );
   }
 
@@ -36,9 +37,10 @@ export async function POST(req: NextRequest) {
         : 'adohealthicmr/videos';
 
     const resource_type = 'video';
+    const format = 'mp4';
     const timestamp = Math.floor(Date.now() / 1000).toString();
 
-    const paramsToSign = { timestamp, folder, resource_type };
+    const paramsToSign = { timestamp, folder, resource_type, format };
 
     console.log('[api/signature] Generating signature', {
       cloudName,
@@ -57,6 +59,7 @@ export async function POST(req: NextRequest) {
     const signature = cloudinary.utils.api_sign_request(paramsToSign, apiSecret);
 
     return NextResponse.json({
+      ok: true,
       timestamp,
       signature,
       cloudName,
