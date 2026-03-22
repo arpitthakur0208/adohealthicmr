@@ -186,9 +186,21 @@ const SmartVideoPlayer: React.FC<SmartVideoPlayerProps> = ({
   const handleError = () => {
     setHasError(true);
     setIsPlaying(false);
-    setErrorText(
-      "Video could not be loaded. Please ensure the file is MP4 (H.264 video + AAC audio)."
-    );
+    const el = videoRef.current;
+    const code = el?.error?.code;
+    // https://developer.mozilla.org/en-US/docs/Web/API/MediaError/code
+    let detail =
+      "Video could not be loaded. Please ensure the file is MP4 (H.264 video + AAC audio).";
+    if (code === 4) {
+      // MEDIA_ERR_SRC_NOT_SUPPORTED — browser can't decode (wrong codec, corrupt, or bad URL)
+      detail =
+        "This video format or codec isn’t supported in your browser. Re-upload after converting to MP4 with H.264 + AAC, or open the playback URL on a desktop browser to verify.";
+    } else if (code === 2) {
+      detail = "Network error while loading the video. Check your connection and try again.";
+    } else if (code === 3) {
+      detail = "Video decoding failed. The file may be corrupt or use an unsupported codec.";
+    }
+    setErrorText(detail);
   };
 
   return (
