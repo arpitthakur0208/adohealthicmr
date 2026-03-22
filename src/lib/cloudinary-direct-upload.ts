@@ -418,12 +418,9 @@ export async function uploadVideoDirect(
       const formData = new FormData();
       formData.append('file', videoFile);
       formData.append('api_key', apiKey);
-      formData.append('timestamp', timestamp);
+      formData.append('timestamp', String(timestamp));
       formData.append('signature', signature);
       formData.append('folder', folder);
-      formData.append('resource_type', 'video');
-      // Keep output as mp4; VideoPlayer further enforces H.264/AAC compatibility.
-      formData.append('format', 'mp4');
 
       // Use XMLHttpRequest for accurate progress tracking and better error handling
       const result = await new Promise<any>((resolve, reject) => {

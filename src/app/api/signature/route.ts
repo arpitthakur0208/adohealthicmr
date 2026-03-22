@@ -36,11 +36,8 @@ export async function POST(req: NextRequest) {
         ? body.folder
         : 'adohealthicmr/videos';
 
-    const resource_type = 'video';
-    const format = 'mp4';
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-
-    const paramsToSign = { timestamp, folder, resource_type, format };
+    const timestamp = Math.floor(Date.now() / 1000);
+    const paramsToSign = { timestamp, folder };
 
     console.log('[api/signature] Generating signature', {
       cloudName,

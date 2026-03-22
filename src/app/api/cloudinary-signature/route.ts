@@ -55,13 +55,12 @@ export async function POST(req: NextRequest) {
         ? body.folder.trim()
         : 'adohealthicmr/videos';
 
-    const timestamp = Math.floor(Date.now() / 1000); // ✅ FIXED (number)
+    // Must match upload FormData exactly (only signed params: timestamp + folder).
+    const timestamp = Math.floor(Date.now() / 1000);
 
     const paramsToSign = {
       timestamp,
       folder,
-      resource_type: 'video',
-      format: 'mp4',
     };
 
     // ✅ Cloudinary config

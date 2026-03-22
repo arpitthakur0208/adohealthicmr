@@ -1528,11 +1528,9 @@ export default function Home() {
           const formData = new FormData();
           formData.append("file", file);
           formData.append("api_key", apiKey);
-          formData.append("timestamp", timestamp);
+          formData.append("timestamp", String(timestamp));
           formData.append("signature", signature);
           formData.append("folder", folder);
-          formData.append("resource_type", "video");
-          formData.append("format", "mp4");
 
           xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {

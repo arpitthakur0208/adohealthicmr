@@ -41,7 +41,7 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
 
       const data = await res.json();
 
-      console.log('Signature response:', data);
+      console.log('[VideoUploader] Cloudinary signature API response:', data);
 
       if (!res.ok || !data.signature) {
         throw new Error(data.error || 'Failed to get upload signature');
@@ -53,11 +53,9 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('api_key', apiKey);
-      formData.append('timestamp', timestamp);
+      formData.append('timestamp', String(timestamp));
       formData.append('signature', signature);
       formData.append('folder', folder);
-      formData.append('resource_type', 'video');
-      formData.append('format', 'mp4');
 
       const xhr = new XMLHttpRequest();
 
@@ -68,6 +66,11 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
       };
 
       xhr.onload = () => {
+        console.log(
+          '[VideoUploader] Cloudinary upload raw response:',
+          xhr.status,
+          xhr.responseText
+        );
         const response = JSON.parse(xhr.responseText || '{}');
 
         if (xhr.status >= 200 && xhr.status < 300) {
