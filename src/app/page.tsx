@@ -1516,12 +1516,19 @@ export default function Home() {
             );
             return;
           }
-          const { timestamp, signature, apiKey, cloudName } =
-            await signatureRes.json();
+          const sigData = await signatureRes.json();
+          const {
+            timestamp,
+            signature,
+            apiKey,
+            cloudName,
+            folder: signedFolder,
+          } = sigData;
           if (!cloudName || !apiKey || !signature || !timestamp) {
             reject(new Error("Invalid signature response from server."));
             return;
           }
+          const uploadFolder = signedFolder ?? folder;
 
           // 2) Upload directly to Cloudinary (avoid backend /api/cloudinary-upload)
           const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
@@ -1530,7 +1537,7 @@ export default function Home() {
           formData.append("api_key", apiKey);
           formData.append("timestamp", String(timestamp));
           formData.append("signature", signature);
-          formData.append("folder", folder);
+          formData.append("folder", uploadFolder);
 
           xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {

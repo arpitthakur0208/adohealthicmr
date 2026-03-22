@@ -408,10 +408,18 @@ export async function uploadVideoDirect(
           `${payload?.message || payload?.error || 'Failed to generate Cloudinary upload signature.'}${hint}`,
         );
       }
-      const { timestamp, signature, cloudName, apiKey } = await signatureRes.json();
+      const sigData = await signatureRes.json();
+      const {
+        timestamp,
+        signature,
+        cloudName,
+        apiKey,
+        folder: signedFolder,
+      } = sigData;
       if (!cloudName || !apiKey || !signature || !timestamp) {
         throw new Error('Invalid signature response from server.');
       }
+      const uploadFolder = signedFolder ?? folder;
 
       const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
 
@@ -420,7 +428,7 @@ export async function uploadVideoDirect(
       formData.append('api_key', apiKey);
       formData.append('timestamp', String(timestamp));
       formData.append('signature', signature);
-      formData.append('folder', folder);
+      formData.append('folder', uploadFolder);
 
       // Use XMLHttpRequest for accurate progress tracking and better error handling
       const result = await new Promise<any>((resolve, reject) => {

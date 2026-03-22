@@ -64,15 +64,24 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
         throw new Error(data.error || 'Failed to get upload signature');
       }
 
-      const { signature, timestamp, apiKey, cloudName } = data;
+      const { signature, timestamp, apiKey, cloudName, folder: folderSigned } = data;
+      // Use folder returned by API (same bytes as signed). Fallback to local folder.
+      const uploadFolder = folderSigned ?? folder;
 
-      // ✅ Upload to Cloudinary
+      // ✅ Upload to Cloudinary — ONLY these fields (must match paramsToSign: timestamp + folder)
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('api_key', apiKey);
       formData.append('timestamp', String(timestamp));
       formData.append('signature', signature);
-      formData.append('folder', folder);
+      formData.append('folder', uploadFolder);
+
+      console.log('Upload params:', {
+        apiKey,
+        timestamp,
+        signature,
+        folder: uploadFolder,
+      });
 
       const xhr = new XMLHttpRequest();
 
@@ -83,11 +92,7 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
       };
 
       xhr.onload = () => {
-        console.log(
-          '[VideoUploader] Cloudinary upload raw response:',
-          xhr.status,
-          xhr.responseText
-        );
+        console.log('Cloudinary response:', xhr.responseText);
         const response = JSON.parse(xhr.responseText || '{}');
 
         if (xhr.status >= 200 && xhr.status < 300) {

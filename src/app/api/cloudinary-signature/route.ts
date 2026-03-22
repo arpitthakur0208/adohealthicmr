@@ -63,6 +63,12 @@ export async function POST(req: NextRequest) {
       folder,
     };
 
+    console.log('[cloudinary-signature] paramsToSign (must match upload FormData)', {
+      timestamp,
+      folder,
+      keys: Object.keys(paramsToSign),
+    });
+
     // ✅ Cloudinary config
     cloudinary.config({
       cloud_name: cloudName,
@@ -75,12 +81,14 @@ export async function POST(req: NextRequest) {
       apiSecret
     );
 
+    // Return `folder` so the client appends the exact string that was signed (avoids mismatch).
     return NextResponse.json({
       ok: true,
       signature,
       timestamp,
       cloudName,
       apiKey,
+      folder,
     });
   } catch (error: any) {
     return NextResponse.json(
