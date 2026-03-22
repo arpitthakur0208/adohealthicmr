@@ -1790,27 +1790,45 @@ export default function Home() {
     publicId: string,
     bytes: number,
   ) => {
+    console.log("[page] handleDirectUploadSuccess — saving video:", {
+      url,
+      publicId,
+      size: bytes,
+      moduleId,
+      videoType,
+    });
     try {
+      // One video per module+type in UI — use videoId 1 so DB upserts (ON CONFLICT) same row.
       const videoData: VideoData = {
         moduleId,
         videoType: videoType as "english" | "punjabi" | "hindi" | "activity",
-        videoId: Date.now(), // Unique ID
-        preview: url.replace(/\.[^/.]+$/, ".jpg"), // Auto-generated thumbnail
-        fileName: `Video_${moduleId}_${videoType}`,
+        videoId: 1,
+        preview: "",
+        fileName: `Video_${moduleId}_${videoType}.mp4`,
         fileSize: bytes,
         fileUrl: url,
+        publicId,
       };
 
       const response = await createVideo(videoData);
+      console.log("[page] createVideo response:", response);
 
       if (response.success) {
-        await refetchData(); // Refresh UI to show the new video
+        console.log("[page] Video saved — refetching list…");
+        await refetchData();
         showSaveFeedback("success", "Video saved successfully!", {
           type: "video",
           moduleId,
         });
+      } else {
+        console.error("[page] createVideo failed:", response.error);
+        showSaveFeedback(
+          "error",
+          response.error || "Failed to save video to database.",
+        );
       }
     } catch (error) {
+      console.error("[page] handleDirectUploadSuccess error:", error);
       showSaveFeedback(
         "error",
         "Upload successful but failed to save to database.",

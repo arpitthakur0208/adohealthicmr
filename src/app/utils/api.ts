@@ -249,6 +249,8 @@ export interface VideoData {
   fileName: string;
   fileSize: number;
   fileUrl?: string;
+  /** Cloudinary public_id — lets /api/videos generate thumbnail when preview is empty */
+  publicId?: string;
 }
 
 export async function getVideos(moduleId?: number, videoType?: string): Promise<ApiResponse<{ videos: VideoData[] }>> {
@@ -257,7 +259,7 @@ export async function getVideos(moduleId?: number, videoType?: string): Promise<
     if (moduleId) params.append('moduleId', moduleId.toString());
     if (videoType) params.append('videoType', videoType);
     const url = `/api/videos${params.toString() ? '?' + params.toString() : ''}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { credentials: 'include' });
     
     // Handle 401 errors gracefully (user not authenticated)
     if (response.status === 401) {

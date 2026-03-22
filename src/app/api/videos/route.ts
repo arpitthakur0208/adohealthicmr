@@ -22,6 +22,11 @@ export const GET = requireAuth(async (request: NextRequest) => {
       isNaN(moduleIdNum as number) ? undefined : moduleIdNum,
       videoType || undefined
     );
+    console.log('[GET /api/videos] Fetched videos:', {
+      moduleId: moduleIdNum,
+      videoType: videoType || 'all',
+      count: videos.length,
+    });
     return NextResponse.json({ success: true, videos });
   } catch (error) {
     console.error('Error fetching videos:', error);
@@ -35,6 +40,13 @@ export const GET = requireAuth(async (request: NextRequest) => {
 export const POST = requireAdmin(async (request: NextRequest, user) => {
   try {
     const body = await request.json();
+    console.log('[POST /api/videos] Saving video in DB (admin):', {
+      moduleId: body?.moduleId,
+      videoType: body?.videoType,
+      videoId: body?.videoId,
+      hasPublicId: !!body?.publicId,
+      hasFileUrl: !!body?.fileUrl,
+    });
     if (isExpressEnabled()) {
       const res = await proxyToExpress('/api/videos', {
         method: 'POST',

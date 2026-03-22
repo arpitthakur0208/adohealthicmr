@@ -96,13 +96,18 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
         const response = JSON.parse(xhr.responseText || '{}');
 
         if (xhr.status >= 200 && xhr.status < 300) {
+          console.log('Cloudinary upload success:', response);
           setUploadResult(response);
           setUploading(false);
-          if (onUploadSuccess) {
-            onUploadSuccess(
-              response.secure_url,
-              response.public_id,
-              response.bytes
+          const secureUrl = response.secure_url || response.url;
+          const pubId = response.public_id;
+          const size = response.bytes ?? 0;
+          if (onUploadSuccess && secureUrl && pubId) {
+            onUploadSuccess(secureUrl, pubId, size);
+          } else if (onUploadSuccess) {
+            console.error(
+              '[VideoUploader] Missing secure_url or public_id in Cloudinary response',
+              response
             );
           }
         } else {
