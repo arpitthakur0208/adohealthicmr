@@ -56,7 +56,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           const publicIdMatch = videoUrl.match(/\/video\/upload\/[^\/]*\/([^\/\.]+)/);
           if (publicIdMatch) {
             const publicId = publicIdMatch[1];
-            const cloudName = videoUrl.match(/res\.cloudinary\.com\/([^\/]+)/)?.[1] || 'adohealth';
+            const cloudName = videoUrl.match(/res\.cloudinary\.com\/([^\/]+)/)?.[1] || 'adohealthicmr';
             // Return video URL with optimizations: f_mp4 for explicit format, q_auto for quality
             return `https://res.cloudinary.com/${cloudName}/video/upload/f_mp4,q_auto/${publicId}`;
           }

@@ -11,12 +11,11 @@ declare namespace NodeJS {
     SENDGRID_API_KEY?: string;
     SENDGRID_FROM_EMAIL?: string;
     
-    // Cloudinary
-    CLOUDINARY_CLOUD_NAME?: 'adohealth';
+    // Cloudinary (browser uploads: NEXT_PUBLIC_* only; server SDK uses CLOUDINARY_API_*)
     NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?: string;
-    CLOUDINARY_API_KEY?: '679322831275176';
-    CLOUDINARY_API_SECRET?: 'u5hub93DijW-3qEKGmIphZcKMSc';
     NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET?: string;
+    CLOUDINARY_API_KEY?: string;
+    CLOUDINARY_API_SECRET?: string;
     
     // Database
     DATABASE_URL?: string;

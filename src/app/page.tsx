@@ -30,7 +30,7 @@ import Footer from "../components/Footer";
 import UploadProgressBar from "../components/UploadProgressBar";
 import VideoPlayer from "../components/VideoPlayer";
 import VideoUploader from "./components/VideoUploader";
-import { UploadProgress } from "../lib/cloudinary-direct-upload";
+import { UploadProgress, uploadVideoDirect } from "../lib/cloudinary-direct-upload";
 import {
   storeVideo,
   uploadVideoInBackground,
@@ -1498,71 +1498,39 @@ export default function Home() {
 
     // Initialize upload progress key
     const progressKey = `${moduleId}-${videoType}`;
-    let startTime = performance.now();
 
     try {
-      const uploadWithProgress = () => {
-        return new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("moduleId", String(moduleId));
-          formData.append("videoType", videoType);
+      console.log("Cloud Name:", process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
+      console.log("Upload Preset:", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
 
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const now = performance.now();
-              const durationInSeconds = (now - startTime) / 1000;
-              const percentComplete = Math.round(
-                (event.loaded / event.total) * 100,
-              );
+      if (!process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim()) {
+        throw new Error(
+          "NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is undefined. Add it to .env.local and restart the dev server.",
+        );
+      }
+      if (!process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET?.trim()) {
+        throw new Error(
+          "NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET is undefined. Add it to .env.local and restart the dev server.",
+        );
+      }
 
-              // Calculate Speed
-              const bps = event.loaded / durationInSeconds;
-              const mbps = (bps / (1024 * 1024)).toFixed(2);
+      const result = await uploadVideoDirect(file, moduleId, videoType, {
+        onProgress: (p) => {
+          setUploadProgress((prev) => ({
+            ...prev,
+            [progressKey]: p,
+          }));
+        },
+      });
 
-              setUploadProgress((prev) => ({
-                ...prev,
-                [progressKey]: {
-                  stage: "uploading",
-                  progress: percentComplete,
-                  message:
-                    percentComplete < 100
-                      ? `Uploading at ${mbps} MB/s`
-                      : "Processing...",
-                  originalSize: file.size,
-                  uploadedBytes: event.loaded,
-                  totalBytes: event.total,
-                  speed: `${mbps} MB/s`,
-                },
-              }));
-            }
-          };
+      if (!result.success || !result.video) {
+        throw new Error(result.error || "Upload failed");
+      }
 
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve(JSON.parse(xhr.responseText));
-            } else {
-              reject(new Error(`Upload failed (${xhr.status})`));
-            }
-          };
-
-          xhr.onerror = () => reject(new Error("Network error."));
-          xhr.open("POST", "/api/cloudinary-upload");
-          xhr.withCredentials = true;
-          xhr.send(formData);
-        });
-      };
-
-      const data: any = await uploadWithProgress();
-
-      const {
-        fileUrl,
-        previewUrl,
-        fileName: savedFileName,
-        fileSize: savedFileSize,
-        videoId,
-      } = data;
+      const v = result.video;
+      const videoId = Date.now();
+      const fileUrl = v.secure_url || v.url || "";
+      const previewUrl = v.secure_url || v.url || "";
 
       setPendingVideos((prev) => ({
         ...prev,
@@ -1577,9 +1545,10 @@ export default function Home() {
             {
               id: videoId,
               preview: previewUrl || "/images/video-placeholder.svg",
-              fileName: savedFileName || file.name,
-              fileSize: savedFileSize ?? file.size,
+              fileName: v.fileName || file.name,
+              fileSize: v.fileSize ?? v.bytes ?? file.size,
               fileUrl,
+              publicId: v.publicId,
             },
           ],
         },

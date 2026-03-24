@@ -44,14 +44,14 @@ console.log('='.repeat(60));
 
 // 1. Check Cloudinary Environment Variables
 console.log('\n1. Checking Cloudinary Configuration...');
-const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
 const apiKey = process.env.CLOUDINARY_API_KEY;
 const apiSecret = process.env.CLOUDINARY_API_SECRET;
 const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
 if (!cloudName) {
-  issues.push('❌ CLOUDINARY_CLOUD_NAME or NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is missing');
-  fixes.push('Add to .env.local: CLOUDINARY_CLOUD_NAME=your_cloud_name');
+  issues.push('❌ NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is missing');
+  fixes.push('Add to .env.local: NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name');
 } else {
   console.log(`   ✅ Cloud Name: ${cloudName}`);
 }

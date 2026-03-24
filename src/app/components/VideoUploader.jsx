@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { performUnsignedVideoUploadXhr } from '@/lib/cloudinary-direct-upload';
 
 /**
  * VideoUploader Component
- * - Handles direct secure upload to Cloudinary
+ * - Direct browser upload via unsigned Cloudinary preset (file + upload_preset)
  * - Notifies parent page.tsx on success to update PostgreSQL
  */
 export default function VideoUploader({ moduleId = 0, videoType = 'default', onUploadSuccess }) {
@@ -15,8 +16,6 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
   const [uploadResult, setUploadResult] = useState(null);
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
-
-  const folder = `adohealthicmr/videos/${moduleId}/${videoType}`;
 
   // Handle file selection
   const handleFileSelect = (event) => {
@@ -57,72 +56,47 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
     setUploading(true);
     setError(null);
 
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+    if (!cloudName?.trim()) {
+      setError(
+        'Cloud name is undefined. Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME in .env.local and restart the dev server.',
+      );
+      setUploading(false);
+      return;
+    }
+    if (!uploadPreset?.trim()) {
+      setError(
+        'Upload preset is undefined. Set NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET in .env.local and restart the dev server.',
+      );
+      setUploading(false);
+      return;
+    }
+
+    console.log('Cloud Name:', process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
+    console.log('Upload Preset:', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
+
     try {
-      // 1. Signed upload (no upload preset — same flow as /api/signature + cloudinary-direct-upload)
-      const signRes = await fetch('/api/signature', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder }),
+      const response = await performUnsignedVideoUploadXhr(selectedFile, {
+        compressionInfo: { originalSize: selectedFile.size, compressedSize: selectedFile.size },
+        onProgress: (p) => setUploadProgress(p.progress),
       });
 
-      const signData = await signRes.json();
-      if (!signData.signature) {
-        throw new Error(signData.error || signData.details || 'Signature failed');
+      setUploadResult(response);
+      setUploading(false);
+
+      if (onUploadSuccess) {
+        onUploadSuccess(
+          response.secure_url,
+          response.public_id,
+          response.bytes,
+        );
       }
-
-      const { timestamp, signature, cloudName, apiKey, folder: signedFolder } = signData;
-
-      // 2. Prepare FormData for Direct Upload
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('api_key', apiKey);
-      formData.append('timestamp', String(timestamp));
-      formData.append('signature', signature);
-      formData.append('folder', signedFolder);
-      formData.append('resource_type', 'video');
-
-      // 3. XHR for Progress Tracking
-      const xhr = new XMLHttpRequest();
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
-
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          setUploadProgress(percent);
-        }
-      };
-
-      xhr.onload = () => {
-        if (xhr.status === 200) {
-          const response = JSON.parse(xhr.responseText);
-          setUploadResult(response);
-          setUploading(false);
-
-          // Notify page.tsx to save the record to PostgreSQL
-          if (onUploadSuccess) {
-            onUploadSuccess(
-              response.secure_url,
-              response.public_id,
-              response.bytes
-            );
-          }
-        } else {
-          const errorRes = JSON.parse(xhr.responseText || '{}');
-          setError(errorRes.error?.message || 'Upload failed.');
-          setUploading(false);
-        }
-      };
-
-      xhr.onerror = () => {
-        setError('Network error during upload.');
-        setUploading(false);
-      };
-
-      xhr.open('POST', uploadUrl);
-      xhr.send(formData);
-
     } catch (err) {
-      setError(err.message || 'Failed to initiate secure upload.');
+      const message =
+        err instanceof Error ? err.message : 'Upload failed. Check Cloudinary preset (unsigned), CORS, and account status.';
+      setError(message);
       setUploading(false);
     }
   };

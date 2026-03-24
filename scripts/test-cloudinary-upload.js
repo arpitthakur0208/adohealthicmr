@@ -11,20 +11,20 @@ const fs = require('fs');
 const path = require('path');
 
 // Configure Cloudinary
-const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
 const apiKey = process.env.CLOUDINARY_API_KEY;
 const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
 console.log('=== Cloudinary Configuration Test ===\n');
 console.log('Environment Variables:');
-console.log(`  CLOUDINARY_CLOUD_NAME: ${cloudName || 'NOT SET'}`);
+console.log(`  NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${cloudName || 'NOT SET'}`);
 console.log(`  CLOUDINARY_API_KEY: ${apiKey ? 'SET (' + apiKey.substring(0, 6) + '...)' : 'NOT SET'}`);
 console.log(`  CLOUDINARY_API_SECRET: ${apiSecret ? 'SET (' + apiSecret.substring(0, 6) + '...)' : 'NOT SET'}\n`);
 
 if (!cloudName || !apiKey || !apiSecret) {
   console.error('❌ ERROR: Missing required environment variables!');
   console.error('Please set the following in .env.local:');
-  if (!cloudName) console.error('  - CLOUDINARY_CLOUD_NAME or NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME');
+  if (!cloudName) console.error('  - NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME');
   if (!apiKey) console.error('  - CLOUDINARY_API_KEY');
   if (!apiSecret) console.error('  - CLOUDINARY_API_SECRET');
   process.exit(1);

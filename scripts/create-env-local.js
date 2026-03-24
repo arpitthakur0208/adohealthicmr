@@ -3,7 +3,7 @@
  * Simple helper to create a .env.local file from CLI args or environment variables.
  *
  * Usage:
- *  node scripts/create-env-local.js CLOUDINARY_CLOUD_NAME=adohealth CLOUDINARY_API_KEY=679322831275176 CLOUDINARY_API_SECRET=yoursecret JWT_SECRET=yourjwt NEXT_PUBLIC_APP_URL=http://localhost:3000
+ *  node scripts/create-env-local.js NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=adohealthicmr CLOUDINARY_API_KEY=... CLOUDINARY_API_SECRET=... JWT_SECRET=... NEXT_PUBLIC_APP_URL=http://localhost:3000
  *
  * Or set the values in the environment and run without args.
  */
@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 const expectedKeys = [
-  'CLOUDINARY_CLOUD_NAME',
+  'NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME',
   'CLOUDINARY_API_KEY',
   'CLOUDINARY_API_SECRET',
   'JWT_SECRET',
