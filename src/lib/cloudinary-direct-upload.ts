@@ -47,17 +47,16 @@ export function performUnsignedVideoUploadXhr(
     compressionInfo?: { originalSize: number; compressedSize: number };
   } = {},
 ): Promise<Record<string, unknown>> {
-  const { cloudName, uploadPreset } = requirePublicCloudinaryUploadConfig();
+  requirePublicCloudinaryUploadConfig();
 
-  console.log('Cloud Name:', process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
-  console.log('Upload Preset:', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
+  console.log("Preset:", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
 
-  const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
+  const uploadUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/video/upload`;
   const compressionInfo = options.compressionInfo ?? { originalSize: file.size, compressedSize: file.size };
 
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('upload_preset', uploadPreset);
+  formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!.trim());
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();

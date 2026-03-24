@@ -74,8 +74,7 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
       return;
     }
 
-    console.log('Cloud Name:', process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
-    console.log('Upload Preset:', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
+    console.log("Preset:", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
 
     try {
       const response = await performUnsignedVideoUploadXhr(selectedFile, {

@@ -1500,8 +1500,7 @@ export default function Home() {
     const progressKey = `${moduleId}-${videoType}`;
 
     try {
-      console.log("Cloud Name:", process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
-      console.log("Upload Preset:", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
+      console.log("Preset:", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
 
       if (!process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim()) {
         throw new Error(
