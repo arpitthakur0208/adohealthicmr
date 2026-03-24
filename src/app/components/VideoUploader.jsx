@@ -7,7 +7,7 @@ import { useState, useRef, useEffect } from 'react';
  * - Handles direct secure upload to Cloudinary
  * - Notifies parent page.tsx on success to update PostgreSQL
  */
-export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) {
+export default function VideoUploader({ moduleId = 0, videoType = 'default', onUploadSuccess }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -16,9 +16,7 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
 
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'adohealth';
-  const uploadPreset = 'adohealth_signed';
-  const folder = `videos/${moduleId}`;
+  const folder = `adohealthicmr/videos/${moduleId}/${videoType}`;
 
   // Handle file selection
   const handleFileSelect = (event) => {
@@ -60,31 +58,28 @@ export default function VideoUploader({ moduleId, videoType, onUploadSuccess }) 
     setError(null);
 
     try {
-      // 1. Get the signature from your API
-      const timestamp = Math.round(new Date().getTime() / 1000).toString();
-      const paramsToSign = {
-        timestamp: timestamp,
-        folder: folder,
-        upload_preset: uploadPreset,
-      };
-
-      const signRes = await fetch('/api/sign-cloudinary', {
+      // 1. Signed upload (no upload preset — same flow as /api/signature + cloudinary-direct-upload)
+      const signRes = await fetch('/api/signature', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paramsToSign }),
+        body: JSON.stringify({ folder }),
       });
 
       const signData = await signRes.json();
-      if (!signData.signature) throw new Error(signData.error || "Signature failed");
+      if (!signData.signature) {
+        throw new Error(signData.error || signData.details || 'Signature failed');
+      }
+
+      const { timestamp, signature, cloudName, apiKey, folder: signedFolder } = signData;
 
       // 2. Prepare FormData for Direct Upload
       const formData = new FormData();
       formData.append('file', selectedFile);
-      formData.append('api_key', process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY);
-      formData.append('timestamp', timestamp);
-      formData.append('signature', signData.signature);
-      formData.append('folder', folder);
-      formData.append('upload_preset', uploadPreset);
+      formData.append('api_key', apiKey);
+      formData.append('timestamp', String(timestamp));
+      formData.append('signature', signature);
+      formData.append('folder', signedFolder);
+      formData.append('resource_type', 'video');
 
       // 3. XHR for Progress Tracking
       const xhr = new XMLHttpRequest();
