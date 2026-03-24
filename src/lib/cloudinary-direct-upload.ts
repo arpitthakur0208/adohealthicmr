@@ -30,9 +30,7 @@ function requirePublicCloudinaryUploadConfig(): { cloudName: string; uploadPrese
     );
   }
   if (!uploadPreset) {
-    throw new Error(
-      'Cloudinary upload preset is undefined. Set NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET in .env.local and restart the dev server.',
-    );
+    throw new Error('Upload preset is missing from environment variables');
   }
   return { cloudName, uploadPreset };
 }
@@ -47,16 +45,19 @@ export function performUnsignedVideoUploadXhr(
     compressionInfo?: { originalSize: number; compressedSize: number };
   } = {},
 ): Promise<Record<string, unknown>> {
-  requirePublicCloudinaryUploadConfig();
+  const { uploadPreset } = requirePublicCloudinaryUploadConfig();
 
-  console.log("Preset:", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
+  console.log("ENV CHECK:", {
+    cloud: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+    preset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
+  });
 
   const uploadUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/video/upload`;
   const compressionInfo = options.compressionInfo ?? { originalSize: file.size, compressedSize: file.size };
 
   const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!.trim());
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();

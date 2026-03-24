@@ -67,14 +67,15 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
       return;
     }
     if (!uploadPreset?.trim()) {
-      setError(
-        'Upload preset is undefined. Set NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET in .env.local and restart the dev server.',
-      );
+      setError('Upload preset is missing from environment variables');
       setUploading(false);
       return;
     }
 
-    console.log("Preset:", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
+    console.log("ENV CHECK:", {
+      cloud: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+      preset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
+    });
 
     try {
       const response = await performUnsignedVideoUploadXhr(selectedFile, {

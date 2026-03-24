@@ -1500,7 +1500,10 @@ export default function Home() {
     const progressKey = `${moduleId}-${videoType}`;
 
     try {
-      console.log("Preset:", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
+      console.log("ENV CHECK:", {
+        cloud: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+        preset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
+      });
 
       if (!process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim()) {
         throw new Error(
@@ -1508,9 +1511,7 @@ export default function Home() {
         );
       }
       if (!process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET?.trim()) {
-        throw new Error(
-          "NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET is undefined. Add it to .env.local and restart the dev server.",
-        );
+        throw new Error("Upload preset is missing from environment variables");
       }
 
       const result = await uploadVideoDirect(file, moduleId, videoType, {
