@@ -1,70 +1,75 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useMemo } from "react";
 
 interface VideoPlayerProps {
+  /** Full Cloudinary secure_url or a video public_id (folder/name). */
   url: string;
-  poster?: string;
   className?: string;
-  onError?: (error: Error) => void;
 }
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, poster, className = '', onError }) => {
-  const [hasError, setHasError] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+/**
+ * Cloudinary hosted embed player — works well on iOS Safari vs raw <video> edge cases.
+ */
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ url, className = "" }) => {
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Optimized Cloudinary URL logic
-  const getUrl = (originalUrl: string, type: 'hls' | 'mp4') => {
-    if (!originalUrl.includes('res.cloudinary.com')) return originalUrl;
-    
-    // Clean the URL of existing transformations
-    let base = originalUrl.replace(/\/upload\/[^\/]+\//, '/upload/');
-    
-    if (type === 'hls') {
-      // Best for iOS: sp_hls profile + .m3u8 extension
-      return base.replace('/upload/', '/upload/sp_hls/').replace(/\.[^/.]+$/, '.m3u8');
+  /** Raw public_id path (unencoded) for query params. */
+  const publicIdRaw = useMemo(() => {
+    if (!url?.trim()) return "";
+    if (!url.includes("res.cloudinary.com")) {
+      return url.replace(/^\/+/, "");
     }
-    // Reliable MP4 for everyone else
-    return base.replace('/upload/', '/upload/f_mp4,vc_h264,q_auto/');
-  };
-
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.load(); // Forces Safari to re-scan sources
-    }
+    const match = url.match(/\/video\/upload\/(?:v\d+\/)?(.+?)(?:\.[^./]+)?$/);
+    return match ? match[1] : url;
   }, [url]);
 
-  return (
-    <div className={`relative overflow-hidden rounded-lg bg-black ${className}`}>
-      <video
-        ref={videoRef}
-        poster={poster}
-        controls
-        playsInline
-        webkit-playsinline="true"
-        preload="metadata"
-        className="w-full h-full"
-        crossOrigin="anonymous"
-        onError={() => {
-          setHasError(true);
-          onError?.(new Error('Video failed to load'));
-        }}
-      >
-        {/* 1. HLS: The iOS favorite */}
-        <source src={getUrl(url, 'hls')} type="application/x-mpegURL" />
-        
-        {/* 2. MP4: The universal fallback */}
-        <source src={getUrl(url, 'mp4')} type="video/mp4" />
-        
-        {/* 3. Original: The "just in case" fallback */}
-        <source src={url} />
-      </video>
+  const embedUrl = useMemo(() => {
+    const cloudName =
+      process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "adohealthicmr";
 
-      {hasError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-900/90 text-white text-xs p-4 text-center">
-          Tap to play or check connection.
+    if (!publicIdRaw) return "";
+
+    const params = new URLSearchParams({
+      cloud_name: cloudName,
+      public_id: publicIdRaw,
+      profile: "Adohealth Video Player",
+    });
+
+    return `https://player.cloudinary.com/embed/?${params.toString()}`;
+  }, [publicIdRaw]);
+
+  if (!url?.trim() || !embedUrl) {
+    return (
+      <div
+        className={`flex items-center justify-center aspect-video bg-gray-900 text-gray-400 text-sm rounded-lg ${className}`}
+      >
+        No video URL
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`relative w-full aspect-video bg-black rounded-lg overflow-hidden ${className}`}
+    >
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-900 z-10">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white" />
         </div>
       )}
+
+      <iframe
+        title="Video player"
+        src={embedUrl}
+        width={640}
+        height={360}
+        className="w-full h-full min-h-[200px] border-0"
+        style={{ aspectRatio: "16 / 9" }}
+        allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+        allowFullScreen
+        onLoad={() => setIsLoading(false)}
+      />
     </div>
   );
 };
