@@ -8,6 +8,11 @@ interface VideoPlayerProps {
   className?: string;
   onError?: (error: Error) => void;
   showControls?: boolean;
+  /** Inline playback on iOS (default true) */
+  playsInline?: boolean;
+  /** Maps to HTML video `autoPlay` */
+  autoPlay?: boolean;
+  muted?: boolean;
 }
 
 /**
@@ -26,6 +31,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   className = '',
   onError,
   showControls = true,
+  playsInline = true,
+  autoPlay = false,
+  muted = false,
 }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -237,7 +245,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           controlsList="nodownload"
           className="w-full h-full object-contain"
           preload="metadata"
-          playsInline
+          playsInline={playsInline}
+          autoPlay={autoPlay}
+          muted={muted}
           crossOrigin="anonymous"
           onError={(e) => {
             const videoElement = e.currentTarget;

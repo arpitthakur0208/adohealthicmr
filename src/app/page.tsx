@@ -3328,6 +3328,9 @@ export default function Home() {
                                               <VideoPlayer
                                                 url={savedVideo.fileUrl}
                                                 className="w-full aspect-video"
+                                                playsInline
+                                                autoPlay
+                                                muted
                                               />
                                               {isAdmin && (
                                                 <button
