@@ -3325,13 +3325,10 @@ export default function Home() {
                                           {savedVideo ? (
                                             /* ONE VIDEO LIMIT: If video exists, show Player and Remove Button */
                                             <div className="relative group border rounded-lg overflow-hidden">
-                                              <VideoPlayer
-                                                url={savedVideo.fileUrl}
-                                                className="w-full aspect-video"
-                                                playsInline
-                                                autoPlay
-                                                muted
-                                              />
+                                              <VideoPlayer 
+                                                  url={savedVideo.fileUrl} 
+                                                  className="w-full aspect-video" 
+                                                />
                                               {isAdmin && (
                                                 <button
                                                   onClick={() =>
