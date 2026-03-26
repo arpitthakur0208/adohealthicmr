@@ -1,6 +1,6 @@
 /**
  * Direct Cloudinary video upload from the browser using an unsigned upload preset.
- * FormData fields sent to Cloudinary: `file`, `upload_preset` only.
+ * FormData fields sent to Cloudinary: `file`, `upload_preset`, `resource_type`, `eager_async`.
  * Configure preset `video_upload_preset` (unsigned) in the Cloudinary console.
  */
 
@@ -63,7 +63,9 @@ export function performUnsignedVideoUploadXhr(
 
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("upload_preset", uploadPreset);
+  formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || uploadPreset);
+  formData.append("resource_type", "video");
+  formData.append("eager_async", "true");
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -109,11 +111,21 @@ export function performUnsignedVideoUploadXhr(
       }
       try {
         const errorResponse = JSON.parse(xhr.responseText) as { error?: { message?: string } };
+        console.error('[Cloudinary Direct Upload] API error response:', errorResponse);
         const errorMessage = errorResponse.error?.message ?? `Upload failed with status ${xhr.status}`;
         if (xhr.status === 413) {
           reject(
             new Error(
-              'File too large (413). Reduce file size or raise preset limits in Cloudinary.',
+              'File too large (413). Reduce file size, compress the video, or raise upload limits in your Cloudinary preset.',
+            ),
+          );
+        } else if (
+          errorMessage.toLowerCase().includes('too large to process synchronously') ||
+          errorMessage.toLowerCase().includes('eager_async')
+        ) {
+          reject(
+            new Error(
+              'Video is too large to process synchronously. Upload now sends eager_async=true; verify the Cloudinary preset supports async eager processing for video.',
             ),
           );
         } else if (xhr.status === 401) {
@@ -124,6 +136,7 @@ export function performUnsignedVideoUploadXhr(
           reject(new Error(`Upload failed (${xhr.status}): ${errorMessage}`));
         }
       } catch {
+        console.error('[Cloudinary Direct Upload] Non-JSON error response:', xhr.responseText);
         if (xhr.status === 0) {
           reject(
             new Error(
@@ -147,7 +160,7 @@ export function performUnsignedVideoUploadXhr(
     xhr.addEventListener('timeout', () =>
       reject(new Error('Upload timed out. Try a smaller file or a faster connection.')),
     );
-    xhr.timeout = 600000;
+    xhr.timeout = 1200000;
     xhr.open('POST', uploadUrl);
     xhr.send(formData);
   });
@@ -396,7 +409,15 @@ export async function uploadVideoDirect(
     };
   }
 
-  // ✅ Check file size (recommend under 500MB)
+  const WARN_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+  if (file.size > WARN_FILE_SIZE) {
+    console.warn('[Cloudinary Direct Upload] Large video selected. Compression recommended.', {
+      fileSize: `${fileSizeMB.toFixed(2)}MB`,
+      warningThreshold: '100MB',
+    });
+  }
+
+  // ✅ Hard limit for browser upload stability
   const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
   if (file.size > MAX_FILE_SIZE) {
     const errorMsg = `File too large! File size is ${fileSizeMB.toFixed(2)}MB. Maximum allowed size is 500MB. Please compress or split the file before uploading.`;
@@ -464,8 +485,6 @@ export async function uploadVideoDirect(
 
       let result: Record<string, unknown> | null = null;
       let lastAttemptError: Error | null = null;
-      const uploadPreset = getUploadPresetOrEmpty();
-      const prefersSignedFlow = /signed/i.test(uploadPreset);
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
@@ -480,17 +499,10 @@ export async function uploadVideoDirect(
             await new Promise((r) => setTimeout(r, waitMs));
           }
 
-          if (prefersSignedFlow) {
-            result = await performSignedVideoUploadXhr(videoFile, {
-              compressionInfo,
-              onProgress: (p, _ci) => onProgress?.(p),
-            });
-          } else {
-            result = await performUnsignedVideoUploadXhr(videoFile, {
-              compressionInfo,
-              onProgress: (p, _ci) => onProgress?.(p),
-            });
-          }
+          result = await performUnsignedVideoUploadXhr(videoFile, {
+            compressionInfo,
+            onProgress: (p, _ci) => onProgress?.(p),
+          });
           lastAttemptError = null;
           break;
         } catch (err) {
@@ -556,9 +568,11 @@ export async function uploadVideoDirect(
             'Cloudinary cloud is disabled or not verified. Open the Cloudinary console, verify your email, and ensure the account is active.';
         } else if (errorMessage.toLowerCase().includes('preset')) {
           errorMessage =
-            'Cloudinary preset error. If your preset is signed, keep the *_signed name. If it is unsigned, set NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET to that unsigned preset name.';
+            'Cloudinary preset error. Ensure NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET points to an unsigned preset that allows video uploads.';
         } else if (errorMessage.includes('Network') || errorMessage.includes('fetch')) {
           errorMessage = 'Network error: Please check your internet connection and ensure the server is running.';
+        } else if (errorMessage.toLowerCase().includes('timed out')) {
+          errorMessage = 'Upload timeout. Try a smaller/compressed video or retry on a stable connection.';
         }
       }
       

@@ -27,9 +27,15 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
       return;
     }
 
-    const maxSize = 5 * 1024 * 1024 * 1024; // 5GB
+    const warnSize = 100 * 1024 * 1024; // 100MB
+    const maxSize = 500 * 1024 * 1024; // 500MB hard limit
+    if (file.size > warnSize) {
+      setError(
+        `Large video detected (${(file.size / 1024 / 1024).toFixed(2)}MB). Upload may take longer; compression is recommended.`,
+      );
+    }
     if (file.size > maxSize) {
-      setError(`File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds 5GB`);
+      setError(`File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds 500MB. Please compress before upload.`);
       return;
     }
 
@@ -69,6 +75,7 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
       cloud: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
       preset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
     });
+    console.log("Cloudinary preset:", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET);
 
     try {
       const result = await uploadVideoDirect(selectedFile, moduleId, videoType, {
@@ -109,6 +116,14 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
   };
 
   const videoUrl = uploadResult?.secure_url || uploadResult?.url;
+  const handleCopyUrl = async () => {
+    if (!videoUrl) return;
+    try {
+      await navigator.clipboard.writeText(videoUrl);
+    } catch (err) {
+      console.error('Failed to copy uploaded video URL:', err);
+    }
+  };
 
   return (
     <div className="video-uploader-container" style={{ width: '100%', padding: '10px' }}>
@@ -178,11 +193,14 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
               fontSize: '14px'
             }}
           >
-            {uploading ? `Uploading ${uploadProgress}%...` : 'Confirm & Upload Video'}
+            {uploading ? `Uploading video... ${uploadProgress}%` : 'Confirm & Upload Video'}
           </button>
 
           {uploading && (
             <div style={{ marginTop: '15px' }}>
+              <div style={{ marginBottom: '8px', fontSize: '12px', color: '#555' }}>
+                Uploading video... {uploadProgress}%
+              </div>
               <div style={{ width: '100%', height: '10px', backgroundColor: '#e0e0e0', borderRadius: '5px', overflow: 'hidden' }}>
                 <div style={{ width: `${uploadProgress}%`, height: '100%', backgroundColor: '#0070f3', transition: 'width 0.2s' }} />
               </div>
@@ -197,8 +215,8 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
           <div style={{ padding: '15px', backgroundColor: '#e8f5e9', border: '1px solid #4caf50', borderRadius: '5px', textAlign: 'center' }}>
             <h3 style={{ color: '#2e7d32', marginTop: 0, fontSize: '16px' }}>✅ Upload Successful!</h3>
             <div style={{ marginTop: '10px', fontSize: '12px', textAlign: 'left' }}>
-              <div style={{ marginBottom: '5px' }}><strong>Public ID:</strong> {uploadResult.public_id}</div>
-              <div style={{ marginBottom: '5px' }}><strong>Size:</strong> {(uploadResult.bytes / 1024 / 1024).toFixed(2)} MB</div>
+              <div style={{ marginBottom: '5px' }}><strong>Public ID:</strong> {uploadResult.publicId || uploadResult.public_id}</div>
+              <div style={{ marginBottom: '5px' }}><strong>Size:</strong> {(((uploadResult.fileSize || uploadResult.bytes || 0) / 1024 / 1024).toFixed(2))} MB</div>
               {uploadResult.width && (
                 <div><strong>Resolution:</strong> {uploadResult.width} x {uploadResult.height}</div>
               )}
@@ -214,6 +232,30 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
           {/* Player for the Cloudinary URL */}
           <div style={{ marginTop: '15px' }}>
             <video src={videoUrl} controls style={{ width: '100%', borderRadius: '5px', backgroundColor: '#000' }} />
+            {videoUrl && (
+              <div style={{ marginTop: '10px', fontSize: '12px', color: '#333' }}>
+                <div style={{ marginBottom: '6px' }}><strong>Uploaded URL:</strong></div>
+                <a href={videoUrl} target="_blank" rel="noreferrer" style={{ color: '#0070f3', wordBreak: 'break-all' }}>
+                  {videoUrl}
+                </a>
+                <div style={{ marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={handleCopyUrl}
+                    style={{
+                      fontSize: '12px',
+                      padding: '6px 10px',
+                      borderRadius: '4px',
+                      border: '1px solid #ccc',
+                      background: '#fff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Copy URL
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
