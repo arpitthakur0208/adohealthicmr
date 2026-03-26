@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { performUnsignedVideoUploadXhr } from '@/lib/cloudinary-direct-upload';
+import { uploadVideoDirect } from '@/lib/cloudinary-direct-upload';
 
 /**
  * VideoUploader Component
- * - Direct browser upload via unsigned Cloudinary preset (file + upload_preset)
+ * - Direct browser upload via unified Cloudinary flow (signed/unsigned)
  * - Notifies parent page.tsx on success to update PostgreSQL
  */
 export default function VideoUploader({ moduleId = 0, videoType = 'default', onUploadSuccess }) {
@@ -57,17 +57,10 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
     setError(null);
 
     const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-
     if (!cloudName?.trim()) {
       setError(
         'Cloud name is undefined. Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME in .env.local and restart the dev server.',
       );
-      setUploading(false);
-      return;
-    }
-    if (!uploadPreset?.trim()) {
-      setError('Upload preset is missing from environment variables');
       setUploading(false);
       return;
     }
@@ -78,19 +71,23 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
     });
 
     try {
-      const response = await performUnsignedVideoUploadXhr(selectedFile, {
-        compressionInfo: { originalSize: selectedFile.size, compressedSize: selectedFile.size },
+      const result = await uploadVideoDirect(selectedFile, moduleId, videoType, {
         onProgress: (p) => setUploadProgress(p.progress),
       });
 
+      if (!result.success || !result.video) {
+        throw new Error(result.error || 'Upload failed');
+      }
+
+      const response = result.video;
       setUploadResult(response);
       setUploading(false);
 
       if (onUploadSuccess) {
         onUploadSuccess(
           response.secure_url,
-          response.public_id,
-          response.bytes,
+          response.publicId,
+          response.fileSize,
         );
       }
     } catch (err) {
