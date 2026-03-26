@@ -1510,9 +1510,6 @@ export default function Home() {
           "NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is undefined. Add it to .env.local and restart the dev server.",
         );
       }
-      if (!process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET?.trim()) {
-        throw new Error("Upload preset is missing from environment variables");
-      }
 
       const result = await uploadVideoDirect(file, moduleId, videoType, {
         onProgress: (p) => {

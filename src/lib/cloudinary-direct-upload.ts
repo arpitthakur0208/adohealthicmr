@@ -21,18 +21,18 @@ export interface UploadOptions {
   maxRetries?: number; // Number of retry attempts for failed chunks (default: 3)
 }
 
-function requirePublicCloudinaryUploadConfig(): { cloudName: string; uploadPreset: string } {
+function requireCloudinaryCloudName(): string {
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim() ?? '';
-  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET?.trim() ?? '';
   if (!cloudName) {
     throw new Error(
       'Cloudinary cloud name is undefined. Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME in .env.local and restart the dev server.',
     );
   }
-  if (!uploadPreset) {
-    throw new Error('Upload preset is missing from environment variables');
-  }
-  return { cloudName, uploadPreset };
+  return cloudName;
+}
+
+function getUploadPresetOrEmpty(): string {
+  return process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET?.trim() ?? '';
 }
 
 /**
@@ -45,14 +45,20 @@ export function performUnsignedVideoUploadXhr(
     compressionInfo?: { originalSize: number; compressedSize: number };
   } = {},
 ): Promise<Record<string, unknown>> {
-  const { uploadPreset } = requirePublicCloudinaryUploadConfig();
+  const cloudName = requireCloudinaryCloudName();
+  const uploadPreset = getUploadPresetOrEmpty();
+  if (!uploadPreset) {
+    throw new Error(
+      'Upload preset is missing. Set NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET in .env.local and restart the dev server.',
+    );
+  }
 
   console.log("ENV CHECK:", {
     cloud: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
     preset: process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET,
   });
 
-  const uploadUrl = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/video/upload`;
+  const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
   const compressionInfo = options.compressionInfo ?? { originalSize: file.size, compressedSize: file.size };
 
   const formData = new FormData();
@@ -137,6 +143,110 @@ export function performUnsignedVideoUploadXhr(
         ),
       );
     });
+    xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled')));
+    xhr.addEventListener('timeout', () =>
+      reject(new Error('Upload timed out. Try a smaller file or a faster connection.')),
+    );
+    xhr.timeout = 600000;
+    xhr.open('POST', uploadUrl);
+    xhr.send(formData);
+  });
+}
+
+async function performSignedVideoUploadXhr(
+  file: File,
+  options: {
+    onProgress?: (p: UploadProgress, compressionExtras: { originalSize: number; compressedSize: number }) => void;
+    compressionInfo?: { originalSize: number; compressedSize: number };
+  } = {},
+): Promise<Record<string, unknown>> {
+  const cloudName = requireCloudinaryCloudName();
+  const compressionInfo = options.compressionInfo ?? { originalSize: file.size, compressedSize: file.size };
+  const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
+
+  const signatureResponse = await fetch('/api/signature', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folder: 'adohealthicmr/videos' }),
+  });
+
+  if (!signatureResponse.ok) {
+    throw new Error('Could not generate Cloudinary signature from server.');
+  }
+
+  const signatureData = (await signatureResponse.json()) as {
+    timestamp?: number;
+    signature?: string;
+    apiKey?: string;
+    folder?: string;
+  };
+
+  if (!signatureData.timestamp || !signatureData.signature || !signatureData.apiKey) {
+    throw new Error('Cloudinary signature response is incomplete.');
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('api_key', String(signatureData.apiKey));
+  formData.append('timestamp', String(signatureData.timestamp));
+  formData.append('signature', String(signatureData.signature));
+  if (signatureData.folder) {
+    formData.append('folder', signatureData.folder);
+  }
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const startTime = Date.now();
+    let lastProgress = 0;
+
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        const progress = Math.round((event.loaded / event.total) * 100);
+        const uploadedMB = (event.loaded / (1024 * 1024)).toFixed(2);
+        const totalMB = (event.total / (1024 * 1024)).toFixed(2);
+        options.onProgress?.(
+          {
+            stage: 'uploading',
+            progress,
+            message: `Uploading to Cloudinary... ${progress}% (${uploadedMB}MB / ${totalMB}MB)`,
+            ...compressionInfo,
+            uploadedBytes: event.loaded,
+            totalBytes: event.total,
+          },
+          compressionInfo,
+        );
+        if (progress - lastProgress >= 5 || progress === 100) {
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+          const speed =
+            event.loaded > 0 ? ((event.loaded / (1024 * 1024)) / parseFloat(elapsed)).toFixed(2) : '0';
+          console.log(
+            `📤 [Cloudinary Signed Upload] Progress: ${progress}% (${uploadedMB}MB / ${totalMB}MB) - ${elapsed}s - ${speed}MB/s`,
+          );
+          lastProgress = progress;
+        }
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as Record<string, unknown>);
+        } catch {
+          reject(new Error('Failed to parse Cloudinary response'));
+        }
+        return;
+      }
+      try {
+        const errorResponse = JSON.parse(xhr.responseText) as { error?: { message?: string } };
+        reject(new Error(errorResponse.error?.message ?? `Upload failed with status ${xhr.status}`));
+      } catch {
+        reject(new Error(`Upload failed with status ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener('error', () =>
+      reject(new Error('Network error during Cloudinary upload. Check connection and CORS settings.')),
+    );
     xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled')));
     xhr.addEventListener('timeout', () =>
       reject(new Error('Upload timed out. Try a smaller file or a faster connection.')),
@@ -278,7 +388,7 @@ export async function uploadVideoDirect(
   const fileSizeMB = file.size / 1024 / 1024;
 
   try {
-    requirePublicCloudinaryUploadConfig();
+    requireCloudinaryCloudName();
   } catch (configErr) {
     return {
       success: false,
@@ -354,6 +464,8 @@ export async function uploadVideoDirect(
 
       let result: Record<string, unknown> | null = null;
       let lastAttemptError: Error | null = null;
+      const uploadPreset = getUploadPresetOrEmpty();
+      const prefersSignedFlow = /signed/i.test(uploadPreset);
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
@@ -368,10 +480,17 @@ export async function uploadVideoDirect(
             await new Promise((r) => setTimeout(r, waitMs));
           }
 
-          result = await performUnsignedVideoUploadXhr(videoFile, {
-            compressionInfo,
-            onProgress: (p, _ci) => onProgress?.(p),
-          });
+          if (prefersSignedFlow) {
+            result = await performSignedVideoUploadXhr(videoFile, {
+              compressionInfo,
+              onProgress: (p, _ci) => onProgress?.(p),
+            });
+          } else {
+            result = await performUnsignedVideoUploadXhr(videoFile, {
+              compressionInfo,
+              onProgress: (p, _ci) => onProgress?.(p),
+            });
+          }
           lastAttemptError = null;
           break;
         } catch (err) {
@@ -437,7 +556,7 @@ export async function uploadVideoDirect(
             'Cloudinary cloud is disabled or not verified. Open the Cloudinary console, verify your email, and ensure the account is active.';
         } else if (errorMessage.toLowerCase().includes('preset')) {
           errorMessage =
-            'Cloudinary upload preset error. Create an unsigned preset named like NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET or fix the name in .env.local.';
+            'Cloudinary preset error. If your preset is signed, keep the *_signed name. If it is unsigned, set NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET to that unsigned preset name.';
         } else if (errorMessage.includes('Network') || errorMessage.includes('fetch')) {
           errorMessage = 'Network error: Please check your internet connection and ensure the server is running.';
         }
