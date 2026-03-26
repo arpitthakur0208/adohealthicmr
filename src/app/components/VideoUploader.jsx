@@ -15,12 +15,15 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState(null);
   const [error, setError] = useState(null);
+  const [warning, setWarning] = useState(null);
   const fileInputRef = useRef(null);
 
   // Handle file selection
   const handleFileSelect = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setError(null);
+    setWarning(null);
 
     if (!file.type.startsWith('video/')) {
       setError('Please select a video file');
@@ -30,7 +33,7 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
     const warnSize = 100 * 1024 * 1024; // 100MB
     const maxSize = 500 * 1024 * 1024; // 500MB hard limit
     if (file.size > warnSize) {
-      setError(
+      setWarning(
         `Large video detected (${(file.size / 1024 / 1024).toFixed(2)}MB). Upload may take longer; compression is recommended.`,
       );
     }
@@ -40,7 +43,6 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
     }
 
     setSelectedFile(file);
-    setError(null);
     setUploadResult(null);
     setUploadProgress(0);
 
@@ -61,6 +63,7 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
 
     setUploading(true);
     setError(null);
+    setWarning(null);
 
     const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
     if (!cloudName?.trim()) {
@@ -112,6 +115,7 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
     setUploadProgress(0);
     setUploadResult(null);
     setError(null);
+    setWarning(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -165,6 +169,12 @@ export default function VideoUploader({ moduleId = 0, videoType = 'default', onU
       {error && (
         <div style={{ padding: '10px', backgroundColor: '#fee', border: '1px solid #fcc', borderRadius: '5px', color: '#c00', marginBottom: '15px', fontSize: '13px' }}>
           <strong>Error:</strong> {error}
+        </div>
+      )}
+
+      {warning && (
+        <div style={{ padding: '10px', backgroundColor: '#fff8e1', border: '1px solid #ffe08a', borderRadius: '5px', color: '#8a6d1f', marginBottom: '15px', fontSize: '13px' }}>
+          <strong>Warning:</strong> {warning}
         </div>
       )}
 
